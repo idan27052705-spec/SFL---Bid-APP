@@ -87,7 +87,9 @@ export default function FileViewer({
         position: "fixed",
         inset: 0,
         zIndex: 80,
-        background: "color-mix(in srgb, var(--color-neutral-900) 88%, transparent)",
+        background: "color-mix(in srgb, var(--color-accent-900) 97%, transparent)",
+        padding: 20,
+        gap: 14,
         display: "flex",
         flexDirection: "column",
       }}
@@ -99,40 +101,49 @@ export default function FileViewer({
           display: "flex",
           alignItems: "center",
           gap: 12,
-          padding: "12px 16px",
-          color: "var(--color-neutral-100)",
-          borderBottom: "1px solid color-mix(in srgb, #fff 18%, transparent)",
+          color: "var(--color-bg)",
         }}
       >
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontFamily: "var(--font-heading)",
+              fontWeight: 600,
+              fontSize: 18,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
             {file.name}
           </div>
-          <div style={{ fontSize: 11, opacity: 0.7 }}>
+          <div style={{ fontSize: 11, letterSpacing: ".14em", textTransform: "uppercase", opacity: 0.7 }}>
+            {file.kind === "photo" ? "Photo" : file.kind === "video" ? "Video" : "Document"} ·{" "}
             {at + 1} of {files.length}
             {file.size_bytes ? ` · ${formatBytes(file.size_bytes)}` : ""}
           </div>
         </div>
 
-        {url && (
-          <a
-            className="btn btn-ghost"
-            href={url}
-            target="_blank"
-            rel="noopener"
-            style={{ color: "var(--color-neutral-100)" }}
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          {url && (
+            <a
+              className="btn btn-secondary"
+              href={url}
+              target="_blank"
+              rel="noopener"
+              style={{ color: "var(--color-bg)", borderColor: "color-mix(in srgb, #f2f2f3 40%, transparent)" }}
+            >
+              <Download size={15} /> Download
+            </a>
+          )}
+          <button
+            className="btn btn-secondary"
+            onClick={onClose}
+            style={{ color: "var(--color-bg)", borderColor: "color-mix(in srgb, #f2f2f3 40%, transparent)" }}
           >
-            <Download size={16} /> Download
-          </a>
-        )}
-        <button
-          className="btn btn-ghost"
-          onClick={onClose}
-          aria-label="Close"
-          style={{ color: "var(--color-neutral-100)" }}
-        >
-          <X size={18} />
-        </button>
+            <X size={15} /> Close
+          </button>
+        </div>
       </div>
 
       {/* stage */}
@@ -154,7 +165,7 @@ export default function FileViewer({
               step(-1);
             }}
             aria-label="Previous"
-            style={{ color: "var(--color-neutral-100)", flex: "none" }}
+            style={{ color: "var(--color-bg)", flex: "none" }}
           >
             <ChevronLeft size={28} />
           </button>
@@ -171,10 +182,10 @@ export default function FileViewer({
             minWidth: 0,
           }}
         >
-          {loading && <div style={{ color: "var(--color-neutral-100)", fontSize: 14 }}>Opening…</div>}
+          {loading && <div style={{ color: "var(--color-bg)", fontSize: 14 }}>Opening…</div>}
 
           {error && (
-            <div style={{ color: "var(--color-neutral-100)", fontSize: 14 }}>{error}</div>
+            <div style={{ color: "var(--color-bg)", fontSize: 14 }}>{error}</div>
           )}
 
           {url && !loading && file.kind === "photo" && (
@@ -207,7 +218,7 @@ export default function FileViewer({
               step(1);
             }}
             aria-label="Next"
-            style={{ color: "var(--color-neutral-100)", flex: "none" }}
+            style={{ color: "var(--color-bg)", flex: "none" }}
           >
             <ChevronRight size={28} />
           </button>

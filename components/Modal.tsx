@@ -12,7 +12,7 @@ export default function Modal({
   onClose,
   children,
   footer,
-  width = 480,
+  width = 520,
 }: {
   title: string;
   subtitle?: string;
@@ -37,8 +37,8 @@ export default function Modal({
   return (
     <div className="dialog-backdrop" onClick={onClose}>
       <div
-        className="dialog"
-        style={{ width: `min(${width}px, 100%)`, maxHeight: "90vh" }}
+        className="dialog blueprint"
+        style={{ width: `min(${width}px, 100%)`, maxHeight: "90vh", background: "var(--color-bg)" }}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -69,6 +69,11 @@ export default function Modal({
         </div>
 
         {footer && <div className="dialog-actions">{footer}</div>}
+
+        <i className="corner tl" />
+        <i className="corner tr" />
+        <i className="corner bl" />
+        <i className="corner br" />
       </div>
     </div>
   );
