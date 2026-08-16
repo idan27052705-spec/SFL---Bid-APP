@@ -59,7 +59,10 @@ Look: square corners, hairline borders, transparent fills. Headings in Barlow Co
 ### Sub portal — route group `app/(portal)`, no sidebar, mobile-first, EN/ES
 | Route | Status |
 |---|---|
-| `/portal` (login), `/portal/bids`, `/portal/bids/[id]`, `/portal/bids/[id]/quote`, `/portal/bids/[id]/decline`, `/portal/profile` | planned (S7) |
+| `/portal` | **built** — sign in with email/phone + 6-digit code |
+| `/portal/open/[token]` | **built** — one-tap link from an email: signs in, stamps viewed, opens the bid |
+| `/portal/bids` | **built** — the whole dashboard: Bids waiting / Submitted / Past |
+| `/portal/bids/[id]` | **built** — scope, line items, drawings, send price or can't-bid |
 
 ## API routes
 
@@ -74,7 +77,11 @@ company scoping through RLS.
 `POST /api/invitations/:id/resend` · `DELETE /api/invitations/:id` · `POST /api/invitations/:id/messages` · `POST /api/invitations/:id/comments` · `POST /api/invitations/:id/deny`
 `POST /api/subs` · `POST /api/subs/:id/code`
 `POST /api/portal/session` · `POST /api/portal/bids/:id/view` · `POST /api/portal/bids/:id/response` · `POST /api/portal/bids/:id/decline` · `POST /api/portal/profile/change-requests`
-`POST /api/change-requests/:id/approve|decline` · `PATCH /api/settings/trades`
+**Portal (built):** `POST /api/portal/session` · `POST /api/portal/logout` · `POST /api/portal/bids/:shortId/response` · `POST /api/portal/bids/:shortId/decline` · `GET /api/portal/files/:id`
+
+Portal routes run on the service-role client (subs have no database account), so every one of them scopes reads and writes through the signed-in sub's own invitation.
+
+**Planned:** `POST /api/portal/profile/change-requests` · `POST /api/change-requests/:id/approve|decline` · `PATCH /api/settings/trades`
 
 ## Database — **live**
 
@@ -105,6 +112,9 @@ Every URL-facing table carries `short_id SERIAL UNIQUE`.
 | `lib/accessCode.ts` | Issue / verify / reveal sub access codes. Stored **encrypted** (AES-256-GCM, key derived from `PORTAL_TOKEN_SECRET`) plus a salted hash for sign-in — the office must be able to tell a sub their code |
 | `lib/email.ts` | Resend wrapper, `{merge}` template rendering, plain-text → branded HTML |
 | `lib/portalToken.ts` | Signed one-tap portal links. HMAC of invitation id + sub `session_epoch`, computed not stored — regenerating a code kills every old link |
+| `lib/portalSession.ts` | Signed sub cookie (sub id + session epoch), re-checked against the database on every request |
+| `lib/portalStrings.ts` | All portal copy, English and Spanish |
+| `app/portal/PortalShell.tsx` | Portal chrome — one column, big targets, EN/ES toggle, sign out |
 | `components/BidBuilder.tsx` | Bid builder used by both new and edit — trade, due date, title, scope, line items, drawing picker, cadence |
 | `components/Modal.tsx` | House modal + `ModalField` — centred, z-70, Esc + click-outside close, body scroll locked |
 
