@@ -243,7 +243,7 @@ export default function AccountForm({ name, email, role, companyName }: Props) {
 
       {(emailChanged || passwordChanged) && (
         <div className="card" style={{ gap: 14 }}>
-          <div className="card-kicker">Confirm it's you</div>
+          <div className="card-kicker">Confirm it&apos;s you</div>
           <Field
             id="currentPassword"
           error={errors.currentPassword}
