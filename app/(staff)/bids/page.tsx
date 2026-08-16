@@ -11,29 +11,37 @@ export default async function BidsPage() {
   const { data: bids } = await supabase
     .from("bids")
     .select(
-      "id, short_id, title, status, due_date, projects(short_id, name), trades(name), invitations(id, responses(id))"
+      "id, short_id, status, due_date, cadence, projects(name), trades(name), invitations(id, status, viewed_at, responses(price))"
     )
     .order("created_at", { ascending: false });
 
   const rows: BidRow[] = (bids ?? []).map((b) => {
-    const project = b.projects as unknown as { short_id: number; name: string } | null;
-    const trade = b.trades as unknown as { name: string } | null;
-    const invites = (b.invitations ?? []) as unknown as { responses: unknown[] }[];
+    const inv = (b.invitations ?? []) as unknown as {
+      status: string;
+      viewed_at: string | null;
+      responses: { price: number | null }[] | { price: number | null } | null;
+    }[];
+    const priceOf = (i: (typeof inv)[number]) => {
+      const r = Array.isArray(i.responses) ? i.responses[0] : i.responses;
+      return r?.price ?? null;
+    };
+    const prices = inv
+      .filter((i) => i.status !== "Denied")
+      .map(priceOf)
+      .filter((p): p is number => p != null);
 
     return {
       id: b.id,
       short_id: b.short_id,
-      title: b.title,
-      status: b.status,
+      project: (b.projects as unknown as { name: string } | null)?.name ?? "—",
+      trade: (b.trades as unknown as { name: string } | null)?.name ?? "—",
+      invited: inv.length,
+      viewed: inv.filter((i) => i.viewed_at).length,
+      received: inv.filter((i) => priceOf(i) != null).length,
+      low: prices.length ? Math.min(...prices) : null,
       due_date: b.due_date,
-      trade: trade?.name ?? "—",
-      project: project?.name ?? "—",
-      projectShortId: project?.short_id ?? 0,
-      invited: invites.length,
-      received: invites.filter((i) => {
-        const r = i.responses;
-        return Array.isArray(r) ? r.length > 0 : !!r;
-      }).length,
+      cadence: b.cadence,
+      status: b.status,
     };
   });
 
