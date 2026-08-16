@@ -87,7 +87,7 @@ export default function NewProjectModal({ onClose }: { onClose: () => void }) {
         placeholder="Las Olas Residences — Tower B"
       />
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      <div className="fieldrow" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <ModalField
           id="client"
           label="Client"
@@ -112,7 +112,7 @@ export default function NewProjectModal({ onClose }: { onClose: () => void }) {
         placeholder="401 E Las Olas Blvd"
       />
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+      <div className="fieldrow" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         <ModalField id="city" label="City" value={form.city} onChange={set("city")} />
         <ModalField
           id="county"

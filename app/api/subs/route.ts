@@ -2,9 +2,13 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireApiUser, forbidden, badRequest } from "@/lib/api";
 import { issueAccessCode } from "@/lib/accessCode";
+import { wrongOrigin } from "@/lib/guard";
 
 /** POST /api/subs — add a subcontractor and issue their access code. */
 export async function POST(request: Request) {
+  const bad = wrongOrigin();
+  if (bad) return bad;
+
   const auth = await requireApiUser();
   if ("error" in auth) return auth.error;
   const { user } = auth;

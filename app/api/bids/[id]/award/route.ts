@@ -4,6 +4,7 @@ import { requireApiUser, forbidden, badRequest, notFound } from "@/lib/api";
 import { sendEmail, renderTemplate } from "@/lib/email";
 import { money } from "@/lib/format";
 import { COMPANY } from "@/app/config";
+import { wrongOrigin } from "@/lib/guard";
 
 /**
  * POST /api/bids/:shortId/award — give the package to one sub.
@@ -16,6 +17,9 @@ export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const bad = wrongOrigin();
+  if (bad) return bad;
+
   const auth = await requireApiUser();
   if ("error" in auth) return auth.error;
   const { user } = auth;

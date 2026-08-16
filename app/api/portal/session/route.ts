@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyAccessCode } from "@/lib/accessCode";
 import { setPortalSession, clearPortalSession } from "@/lib/portalSession";
 import { STR, pickLang } from "@/lib/portalStrings";
+import { wrongOrigin } from "@/lib/guard";
 
 /**
  * POST /api/portal/session — sub sign-in with email (or phone) + access code.
@@ -29,6 +30,9 @@ function rateLimited(key: string) {
 }
 
 export async function POST(request: Request) {
+  const bad = wrongOrigin();
+  if (bad) return bad;
+
   const body = await request.json().catch(() => null);
   const t = STR[pickLang(body?.lang)];
 

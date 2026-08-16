@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireApiUser, forbidden, badRequest, notFound } from "@/lib/api";
 import { fileKind } from "@/lib/format";
+import { wrongOrigin } from "@/lib/guard";
 
 const MAX_BYTES = 50 * 1024 * 1024; // 50 MB per file
 
@@ -10,6 +11,9 @@ export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const bad = wrongOrigin();
+  if (bad) return bad;
+
   const auth = await requireApiUser();
   if ("error" in auth) return auth.error;
   const { user } = auth;

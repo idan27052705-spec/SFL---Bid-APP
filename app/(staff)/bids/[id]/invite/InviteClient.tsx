@@ -142,7 +142,7 @@ export default function InviteClient({
             </Link>
           </div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
+          <div className="tablewrap">
             <table className="table">
               <thead>
                 <tr>

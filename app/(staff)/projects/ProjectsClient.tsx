@@ -118,7 +118,7 @@ export default function ProjectsClient({
             )}
           </div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
+          <div className="tablewrap">
             <table className="table">
               <thead>
                 <tr>

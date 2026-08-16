@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { wrongOrigin } from "@/lib/guard";
 
 /**
  * PATCH /api/account — the signed-in user edits THEIR OWN name, email or password.
@@ -28,6 +29,9 @@ const bad = (message: string, status = 400) =>
   NextResponse.json({ error: message }, { status });
 
 export async function PATCH(request: Request) {
+  const originError = wrongOrigin();
+  if (originError) return originError;
+
   const supabase = createClient();
   const {
     data: { user },

@@ -149,7 +149,7 @@ export default function NewSubModal({
         placeholder="Sunrise Plumbing Inc."
       />
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      <div className="fieldrow" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <ModalField
           id="contactName"
           label="Contact name"
@@ -166,7 +166,7 @@ export default function NewSubModal({
         />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      <div className="fieldrow" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <ModalField
           id="email"
           label="Email"

@@ -87,7 +87,7 @@ export default function BidsClient({ bids }: { bids: BidRow[] }) {
             {bids.length === 0 && <Link className="btn btn-primary" href="/projects">Go to projects</Link>}
           </div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
+          <div className="tablewrap">
             <table className="table">
               <thead>
                 <tr>

@@ -189,7 +189,7 @@ export default async function DashboardPage() {
                     Nothing out at the moment.
                   </p>
                 ) : (
-                  <div style={{ overflowX: "auto" }}>
+                  <div className="tablewrap">
                     <table className="table">
                       <thead>
                         <tr>

@@ -6,12 +6,16 @@ import { makePortalToken } from "@/lib/portalToken";
 import { formatDate } from "@/lib/format";
 import { issueAccessCode, revealCode } from "@/lib/accessCode";
 import { COMPANY } from "@/app/config";
+import { wrongOrigin } from "@/lib/guard";
 
 /** POST /api/invitations/:id/resend — nudge one sub by email. */
 export async function POST(
   _request: Request,
   { params }: { params: { id: string } }
 ) {
+  const bad = wrongOrigin();
+  if (bad) return bad;
+
   const auth = await requireApiUser();
   if ("error" in auth) return auth.error;
   const { user } = auth;

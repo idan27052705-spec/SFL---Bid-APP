@@ -155,7 +155,7 @@ export default function BidBuilder({
         <div className="card" style={{ gap: 14 }}>
           <div className="card-kicker">The basics</div>
 
-          <div className="cols" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div className="fieldrow" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div className="field">
               <label htmlFor="trade">
                 Trade<span style={{ color: "#b3261e" }}> *</span>

@@ -6,6 +6,7 @@ import { makePortalToken } from "@/lib/portalToken";
 import { issueAccessCode, revealCode } from "@/lib/accessCode";
 import { formatDate } from "@/lib/format";
 import { COMPANY } from "@/app/config";
+import { wrongOrigin } from "@/lib/guard";
 
 /**
  * POST /api/bids/:shortId/invitations — invite subs to price a package.
@@ -18,6 +19,9 @@ export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const bad = wrongOrigin();
+  if (bad) return bad;
+
   const auth = await requireApiUser();
   if ("error" in auth) return auth.error;
   const { user } = auth;

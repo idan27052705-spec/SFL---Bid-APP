@@ -3,6 +3,7 @@ import { getPortalSub } from "@/lib/portalSession";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { STR, pickLang } from "@/lib/portalStrings";
 import { money, fileKind } from "@/lib/format";
+import { wrongOrigin } from "@/lib/guard";
 
 /**
  * POST /api/portal/bids/:shortId/response — the sub sends their price.
@@ -16,6 +17,9 @@ export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const bad = wrongOrigin();
+  if (bad) return bad;
+
   const sub = await getPortalSub();
   if (!sub) return NextResponse.json({ error: "Signed out." }, { status: 401 });
 

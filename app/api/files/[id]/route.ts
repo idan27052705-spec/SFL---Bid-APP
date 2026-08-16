@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireApiUser, forbidden, badRequest, notFound } from "@/lib/api";
+import { wrongOrigin } from "@/lib/guard";
 
 /**
  * GET /api/files/:id — hand back a short-lived signed URL.
@@ -38,6 +39,9 @@ export async function DELETE(
   _request: Request,
   { params }: { params: { id: string } }
 ) {
+  const bad = wrongOrigin();
+  if (bad) return bad;
+
   const auth = await requireApiUser();
   if ("error" in auth) return auth.error;
   const { user } = auth;

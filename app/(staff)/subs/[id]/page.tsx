@@ -81,7 +81,7 @@ export default async function SubDetailPage({
               Nothing sent to this sub yet.
             </p>
           ) : (
-            <div style={{ overflowX: "auto" }}>
+            <div className="tablewrap">
               <table className="table">
                 <thead>
                   <tr>

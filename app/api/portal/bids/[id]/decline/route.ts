@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getPortalSub } from "@/lib/portalSession";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { STR, pickLang } from "@/lib/portalStrings";
+import { wrongOrigin } from "@/lib/guard";
 
 /**
  * POST /api/portal/bids/:shortId/decline — "I can't bid this one".
@@ -14,6 +15,9 @@ export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const bad = wrongOrigin();
+  if (bad) return bad;
+
   const sub = await getPortalSub();
   if (!sub) return NextResponse.json({ error: "Signed out." }, { status: 401 });
 
