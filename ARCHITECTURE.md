@@ -28,8 +28,9 @@ Live at `bids.sflbuildersgroup.com`.
 2. **No mock data past Session 2.** Every field is backed by a real column.
 3. **Two audiences, two sessions.** Staff auth (Supabase Auth cookie) and sub portal auth (email + access code) never share a session.
 4. **Files are private.** The `bid-files` bucket is private — verified that both the public URL and the anon key are refused. Downloads go through `GET /api/files/:id`, which returns a 10-minute signed URL. Storage paths are `companyId/projects/projectId/uuid.ext` — never the user's filename.
-5. **Awarded bids are frozen.** Once a package is awarded, the scope a sub priced can't shift underneath them — the Edit button is hidden, the edit page redirects, and `POST /api/bids/save` refuses.
-6. **Modals**: centred, no page scroll, `z-index: 70`, red `*` on required fields, calendar picker for dates, reset on open, click-outside closes.
+5. **Denying keeps the record.** Ruling a sub out sets the invitation to Denied with a reason and leaves their price in place — removing the invitation would erase what they actually quoted. `DELETE /api/invitations/:id` refuses once a price exists.
+6. **Awarded bids are frozen.** Once a package is awarded, the scope a sub priced can't shift underneath them — the Edit button is hidden, the edit page redirects, and `POST /api/bids/save` refuses.
+7. **Modals**: centred, no page scroll, `z-index: 70`, red `*` on required fields, calendar picker for dates, reset on open, click-outside closes.
 
 ## Design system
 
@@ -42,14 +43,14 @@ Look: square corners, hairline borders, transparent fills. Headings in Barlow Co
 ### Staff — route group `app/(staff)`, sidebar layout
 | Route | Status |
 |---|---|
-| `/` | Dashboard — **built** (live counts, build progress) |
+| `/` | Dashboard — **built** — KPIs, "gone quiet" nudge list with one-click resend, out-for-pricing table, activity feed |
 | `/projects` | **built** — search, status filter, New project modal |
 | `/projects/[id]` | **built** — bid packages, files, description, details, activity |
 | `/bids` | **built** — all packages, search, status filter, responses count |
 | `/bids/[id]` | **built** — scope, line items, drawings, subs invited, activity |
 | `/projects/[id]/bids/new`, `/bids/[id]/edit` | **built** — the bid builder (shared `components/BidBuilder.tsx`) |
 | `/bids/[id]/invite` | **built** — pick subs (trade-filtered), select all, send real emails |
-| `/bids/[id]/compare` | planned (S8) |
+| `/bids/[id]/compare` | **built** — prices sorted low first, low-bid tag, gap over low, award / rule out |
 | `/subs` | **built** — search, trade filter, Add sub modal, code issued once |
 | `/subs/[id]` | **built** — details, bid history, portal access / regenerate code |
 | `/activity` | planned (S8) |
@@ -68,13 +69,13 @@ Look: square corners, hairline borders, transparent fills. Headings in Barlow Co
 
 **Built:** `POST /api/account` (own name/email/password) · `POST /api/projects` ·
 `POST /api/projects/:shortId/files` · `GET|DELETE /api/files/:id` (signed URL / delete) ·
-`POST /api/subs` · `POST /api/subs/:shortId/code` · `POST /api/bids/save` (create + update) · `POST /api/bids/:shortId/invitations` · `POST /api/invitations/:id/resend` · `DELETE /api/invitations/:id`
+`POST /api/subs` · `POST /api/subs/:shortId/code` · `POST /api/bids/save` (create + update) · `POST /api/bids/:shortId/invitations` · `POST /api/invitations/:id/resend` · `POST /api/invitations/:id/deny` · `DELETE /api/invitations/:id` · `POST /api/bids/:shortId/award`
 
 Every route: identity from the auth cookie only, `viewer` rejected on writes,
 company scoping through RLS.
 
 **Planned:** `PATCH /api/bids/:id` · `POST /api/bids/:id/invitations` · `POST /api/bids/:id/award`
-`POST /api/invitations/:id/resend` · `DELETE /api/invitations/:id` · `POST /api/invitations/:id/messages` · `POST /api/invitations/:id/comments` · `POST /api/invitations/:id/deny`
+`POST /api/invitations/:id/resend` · `POST /api/invitations/:id/deny` · `DELETE /api/invitations/:id` · `POST /api/bids/:shortId/award` · `POST /api/invitations/:id/messages` · `POST /api/invitations/:id/comments` · `POST /api/invitations/:id/deny`
 `POST /api/subs` · `POST /api/subs/:id/code`
 `POST /api/portal/session` · `POST /api/portal/bids/:id/view` · `POST /api/portal/bids/:id/response` · `POST /api/portal/bids/:id/decline` · `POST /api/portal/profile/change-requests`
 **Portal (built):** `POST /api/portal/session` · `POST /api/portal/logout` · `POST /api/portal/bids/:shortId/response` · `POST /api/portal/bids/:shortId/decline` · `GET /api/portal/files/:id`
@@ -115,6 +116,7 @@ Every URL-facing table carries `short_id SERIAL UNIQUE`.
 | `lib/portalSession.ts` | Signed sub cookie (sub id + session epoch), re-checked against the database on every request |
 | `lib/portalStrings.ts` | All portal copy, English and Spanish |
 | `app/portal/PortalShell.tsx` | Portal chrome — one column, big targets, EN/ES toggle, sign out |
+| `app/(staff)/NudgeList.tsx` | Dashboard "gone quiet" rows with a one-click Nudge |
 | `components/BidBuilder.tsx` | Bid builder used by both new and edit — trade, due date, title, scope, line items, drawing picker, cadence |
 | `components/Modal.tsx` | House modal + `ModalField` — centred, z-70, Esc + click-outside close, body scroll locked |
 

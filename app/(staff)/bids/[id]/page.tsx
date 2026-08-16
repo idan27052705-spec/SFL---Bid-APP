@@ -103,9 +103,16 @@ export default async function BidDetailPage({
                   Edit package
                 </Link>
               )}
-              <Link className="btn btn-primary" href={`/bids/${bid.short_id}/invite`}>
-                {invited.length ? "Invite more subs" : "Invite subs"}
-              </Link>
+              {invited.length > 0 && (
+                <Link className="btn btn-secondary" href={`/bids/${bid.short_id}/compare`}>
+                  Compare
+                </Link>
+              )}
+              {bid.status !== "Awarded" && (
+                <Link className="btn btn-primary" href={`/bids/${bid.short_id}/invite`}>
+                  {invited.length ? "Invite more subs" : "Invite subs"}
+                </Link>
+              )}
             </div>
           )}
         </div>
