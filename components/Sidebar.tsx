@@ -12,6 +12,7 @@ import {
   Mail,
   Bell,
   UserCog,
+  UserRound,
   type LucideIcon,
 } from "lucide-react";
 import { APP, COMPANY, NAV, NAV_SETTINGS } from "@/app/config";
@@ -25,6 +26,7 @@ const ICONS: Record<string, LucideIcon> = {
   mail: Mail,
   bell: Bell,
   "user-cog": UserCog,
+  "user-round": UserRound,
 };
 
 function NavLink({
@@ -47,7 +49,11 @@ function NavLink({
   );
 }
 
-export default function Sidebar() {
+export default function Sidebar({
+  user,
+}: {
+  user: { name: string; email: string; role: string; companyName: string };
+}) {
   const pathname = usePathname();
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -118,10 +124,32 @@ export default function Sidebar() {
           fontSize: 12,
         }}
       >
-        <div className="text-muted">Not signed in</div>
-        <div className="text-muted" style={{ fontSize: 11 }}>
-          {APP.domain}
+        <div
+          style={{
+            fontFamily: "var(--font-heading)",
+            fontWeight: 600,
+            fontSize: 14,
+          }}
+        >
+          {user.name}
         </div>
+        <div className="text-muted" style={{ fontSize: 11 }}>
+          {user.role === "owner"
+            ? "Owner"
+            : user.role === "staff"
+              ? "Staff"
+              : "View only"}{" "}
+          · {user.companyName}
+        </div>
+        <form action="/auth/signout" method="post">
+          <button
+            type="submit"
+            className="btn btn-ghost"
+            style={{ padding: 0, fontSize: 12, marginTop: 4 }}
+          >
+            Sign out
+          </button>
+        </form>
       </div>
     </aside>
   );

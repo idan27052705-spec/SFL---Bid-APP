@@ -30,6 +30,7 @@ export const NAV = [
 ] as const;
 
 export const NAV_SETTINGS = [
+  { key: "account", label: "My account", icon: "user-round", href: "/settings/account" },
   { key: "trades", label: "Trades", icon: "hammer", href: "/settings/trades" },
   { key: "templates", label: "Templates", icon: "mail", href: "/settings/templates" },
   { key: "reminders", label: "Reminders", icon: "bell", href: "/settings/reminders" },

@@ -41,13 +41,13 @@ Look: square corners, hairline borders, transparent fills. Headings in Barlow Co
 ### Staff — route group `app/(staff)`, sidebar layout
 | Route | Status |
 |---|---|
-| `/` | Dashboard — **shell built** |
+| `/` | Dashboard — **built** (live counts, build progress) |
 | `/projects`, `/projects/[id]` | planned (S4) |
 | `/bids`, `/bids/[id]`, `/bids/[id]/builder`, `/bids/[id]/invite`, `/bids/[id]/compare` | planned (S5, S6, S8) |
 | `/subs`, `/subs/[id]` | planned (S4) |
 | `/activity` | planned (S8) |
 | `/settings/trades`, `/settings/templates`, `/settings/reminders`, `/settings/team` | planned |
-| `/login` | planned (S3) |
+| `/login` | **built** — email + password, Supabase Auth |
 
 ### Sub portal — route group `app/(portal)`, no sidebar, mobile-first, EN/ES
 | Route | Status |
@@ -63,9 +63,13 @@ Look: square corners, hairline borders, transparent fills. Headings in Barlow Co
 `POST /api/portal/session` · `POST /api/portal/bids/:id/view` · `POST /api/portal/bids/:id/response` · `POST /api/portal/bids/:id/decline` · `POST /api/portal/profile/change-requests`
 `POST /api/change-requests/:id/approve|decline` · `PATCH /api/settings/trades`
 
-## Database (Session 2)
+## Database — **live**
 
-Planned tables: `companies`, `users`, `projects`, `trades`, `bids`, `bid_line_items`, `subs`, `invitations`, `responses`, `response_line_items`, `messages`, `comments` (internal only), `change_requests`, `files`, `activity`, `settings`, `email_templates`.
+Supabase project `cxgmvaonfnfxviaqtdcu`. Migrations in `supabase/migrations/`
+(`0001_init.sql` schema + RLS + storage bucket, `0002_seed.sql` company, trades,
+settings, email templates).
+
+Tables: `companies`, `users`, `projects`, `trades`, `bids`, `bid_line_items`, `subs`, `invitations`, `responses`, `response_line_items`, `messages`, `comments` (internal only), `change_requests`, `files`, `activity`, `settings`, `email_templates`.
 
 Every URL-facing table carries `short_id SERIAL UNIQUE`.
 
@@ -73,16 +77,32 @@ Every URL-facing table carries `short_id SERIAL UNIQUE`.
 
 | Component | Purpose |
 |---|---|
-| `components/Sidebar.tsx` | Staff left nav — reads `NAV` / `NAV_SETTINGS` from `app/config.ts` |
+| `components/Sidebar.tsx` | Staff left nav — reads `NAV` / `NAV_SETTINGS` from `app/config.ts`; shows signed-in user, role and Sign out |
+| `lib/supabase/client.ts` | Browser client (anon key, RLS applies) |
+| `lib/supabase/server.ts` | Server client for pages and API routes (runs as the signed-in user) |
+| `lib/supabase/admin.ts` | Service-role client — **portal routes only**, bypasses RLS, must check ownership first |
+| `lib/supabase/middleware.ts` | Refreshes the auth cookie, redirects signed-out users to `/login` |
+| `lib/auth.ts` | `requireUser()`, `canWrite()`, `assertCanWrite()` — role gate (`viewer` is read-only) |
+| `middleware.ts` | Route guard. Public: `/login`, `/auth`, `/portal`, `/api/portal` |
+
+## Auth
+
+- **Staff**: Supabase Auth email + password, HTTP-only cookie, refreshed in middleware.
+  `profiles` links the auth user to a company and a role (`owner` / `staff` / `viewer`).
+  `POST /auth/signout` clears the session.
+- **Subs**: no Supabase account. Email/phone + 6-digit access code, verified server-side
+  against `subs.access_code_hash`. Portal routes use the service-role client and must
+  check ownership on every record. `subs.session_epoch` invalidates live sessions when a
+  code is regenerated. *(built in S7)*
 
 ## Env vars
 
-See `.env.example`. `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`, `NEXT_PUBLIC_SITE_URL`.
+See `.env.example`. All four are set in Vercel (Production + Preview) and in local `.env.local`. `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`, `NEXT_PUBLIC_SITE_URL`.
 
 ## Integrations
 
 | Integration | Status |
 |---|---|
-| Supabase | not connected (S2) |
+| Supabase | **connected** — project `cxgmvaonfnfxviaqtdcu` |
 | Resend (email) | not connected (S6) |
 | Twilio (SMS) | deferred — after launch |
