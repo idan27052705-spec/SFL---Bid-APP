@@ -27,7 +27,7 @@ Live at `bids.sflbuildersgroup.com`.
 1. **Everything changes from one place.** Colors → `:root` in `app/globals.css`. Names, nav, statuses, trades → `app/config.ts`. Never hardcode a repeated value.
 2. **No mock data past Session 2.** Every field is backed by a real column.
 3. **Two audiences, two sessions.** Staff auth (Supabase Auth cookie) and sub portal auth (email + access code) never share a session.
-4. **Files are private.** Storage bucket is private; all downloads go through signed URLs.
+4. **Files are private.** The `bid-files` bucket is private — verified that both the public URL and the anon key are refused. Downloads go through `GET /api/files/:id`, which returns a 10-minute signed URL. Storage paths are `companyId/projects/projectId/uuid.ext` — never the user's filename.
 5. **Modals**: centred, no page scroll, `z-index: 70`, red `*` on required fields, calendar picker for dates, reset on open, click-outside closes.
 
 ## Design system
@@ -42,9 +42,11 @@ Look: square corners, hairline borders, transparent fills. Headings in Barlow Co
 | Route | Status |
 |---|---|
 | `/` | Dashboard — **built** (live counts, build progress) |
-| `/projects`, `/projects/[id]` | planned (S4) |
+| `/projects` | **built** — search, status filter, New project modal |
+| `/projects/[id]` | **built** — bid packages, files, description, details, activity |
 | `/bids`, `/bids/[id]`, `/bids/[id]/builder`, `/bids/[id]/invite`, `/bids/[id]/compare` | planned (S5, S6, S8) |
-| `/subs`, `/subs/[id]` | planned (S4) |
+| `/subs` | **built** — search, trade filter, Add sub modal, code issued once |
+| `/subs/[id]` | **built** — details, bid history, portal access / regenerate code |
 | `/activity` | planned (S8) |
 | `/settings/trades`, `/settings/templates`, `/settings/reminders`, `/settings/team` | planned |
 | `/login` | **built** — email + password, Supabase Auth |
@@ -54,9 +56,16 @@ Look: square corners, hairline borders, transparent fills. Headings in Barlow Co
 |---|---|
 | `/portal` (login), `/portal/bids`, `/portal/bids/[id]`, `/portal/bids/[id]/quote`, `/portal/bids/[id]/decline`, `/portal/profile` | planned (S7) |
 
-## API routes (planned — names taken from the design's data layer)
+## API routes
 
-`POST /api/projects` · `POST /api/projects/:id/files` · `POST /api/projects/:id/bids`
+**Built:** `POST /api/account` (own name/email/password) · `POST /api/projects` ·
+`POST /api/projects/:shortId/files` · `GET|DELETE /api/files/:id` (signed URL / delete) ·
+`POST /api/subs` · `POST /api/subs/:shortId/code`
+
+Every route: identity from the auth cookie only, `viewer` rejected on writes,
+company scoping through RLS.
+
+**Planned:** `POST /api/projects/:id/bids`
 `PATCH /api/bids/:id` · `POST /api/bids/:id/invitations` · `POST /api/bids/:id/award`
 `POST /api/invitations/:id/resend` · `DELETE /api/invitations/:id` · `POST /api/invitations/:id/messages` · `POST /api/invitations/:id/comments` · `POST /api/invitations/:id/deny`
 `POST /api/subs` · `POST /api/subs/:id/code`
@@ -84,6 +93,10 @@ Every URL-facing table carries `short_id SERIAL UNIQUE`.
 | `lib/supabase/middleware.ts` | Refreshes the auth cookie, redirects signed-out users to `/login` |
 | `lib/auth.ts` | `requireUser()`, `canWrite()`, `assertCanWrite()` — role gate (`viewer` is read-only) |
 | `middleware.ts` | Route guard. Public: `/login`, `/auth`, `/portal`, `/api/portal` |
+| `lib/api.ts` | `requireApiUser()`, `badRequest()`, `forbidden()`, `notFound()` for API routes |
+| `lib/format.ts` | `money`, `formatDate`, `formatDateShort`, `timeAgo`, `formatBytes`, `fileKind` |
+| `lib/accessCode.ts` | Generate / hash / verify sub access codes (SHA-256 salted per sub) |
+| `components/Modal.tsx` | House modal + `ModalField` — centred, z-70, Esc + click-outside close, body scroll locked |
 
 ## Auth
 
