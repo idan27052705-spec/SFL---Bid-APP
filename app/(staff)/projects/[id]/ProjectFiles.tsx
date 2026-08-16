@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileText, Image as ImageIcon, Video } from "lucide-react";
 import { formatBytes, timeAgo } from "@/lib/format";
+import FileViewer from "@/components/FileViewer";
 
 export type FileRow = {
   id: string;
@@ -28,7 +29,7 @@ export default function ProjectFiles({
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [opening, setOpening] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<number | null>(null);
 
   async function upload(list: FileList | null) {
     if (!list || list.length === 0) return;
@@ -52,15 +53,6 @@ export default function ProjectFiles({
     setBusy(false);
     if (input.current) input.current.value = "";
     router.refresh();
-  }
-
-  async function open(id: string) {
-    setOpening(id);
-    const res = await fetch(`/api/files/${id}`);
-    const data = await res.json();
-    setOpening(null);
-    if (res.ok) window.open(data.url, "_blank", "noopener");
-    else setError(data.error || "Couldn't open that file.");
   }
 
   async function remove(id: string, name: string) {
@@ -128,11 +120,10 @@ export default function ProjectFiles({
                     <button
                       className="btn btn-ghost"
                       style={{ padding: 0, gap: 8 }}
-                      onClick={() => open(f.id)}
-                      disabled={opening === f.id}
+                      onClick={() => setViewing(files.indexOf(f))}
                     >
                       <Icon size={15} />
-                      {opening === f.id ? "Opening…" : f.name}
+                      {f.name}
                     </button>
                   </td>
                   <td className="text-muted">{formatBytes(f.size_bytes)}</td>
@@ -153,6 +144,10 @@ export default function ProjectFiles({
             })}
           </tbody>
         </table>
+      )}
+
+      {viewing !== null && (
+        <FileViewer files={files} index={viewing} onClose={() => setViewing(null)} />
       )}
     </div>
   );

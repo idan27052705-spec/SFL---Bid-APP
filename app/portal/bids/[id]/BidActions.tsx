@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { STR, type Lang } from "@/lib/portalStrings";
 import { money } from "@/lib/format";
+import FileViewer from "@/components/FileViewer";
 
 type Existing = {
   price: number | null;
@@ -41,13 +42,7 @@ export default function BidActions({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<string | null>(null);
-
-  async function openFile(id: string) {
-    const res = await fetch(`/api/portal/files/${id}`);
-    const data = await res.json();
-    if (res.ok) window.open(data.url, "_blank", "noopener");
-    else setError(data.error || "Couldn't open that file.");
-  }
+  const [viewing, setViewing] = useState<number | null>(null);
 
   async function sendQuote() {
     setError(null);
@@ -120,7 +115,7 @@ export default function BidActions({
                 key={f.id}
                 className="btn btn-secondary"
                 style={{ ...big, justifyContent: "space-between" }}
-                onClick={() => openFile(f.id)}
+                onClick={() => setViewing(files.indexOf(f))}
               >
                 <span
                   style={{
@@ -291,6 +286,15 @@ export default function BidActions({
             {t.cancel}
           </button>
         </div>
+      )}
+
+      {viewing !== null && (
+        <FileViewer
+          files={files.map((f) => ({ ...f, kind: "doc" }))}
+          index={viewing}
+          onClose={() => setViewing(null)}
+          portal
+        />
       )}
 
       {mode === "decline" && (

@@ -7,6 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 import { formatDate, money, timeAgo } from "@/lib/format";
 import Blueprint from "@/components/Blueprint";
 import Tabs from "@/components/Tabs";
+import type { Comment } from "@/components/CommentsModal";
+import SendAllButton from "./SendAllButton";
 import {
   BidFilesPanel,
   CadenceBar,
@@ -79,7 +81,7 @@ export default async function BidDetailPage({
       supabase
         .from("invitations")
         .select(
-          "id, status, sent_at, viewed_at, reminders, decline_reason, sub_id, subs(short_id, company_name, contact_name, phone, sub_trades(trades(name))), responses(price, lead_time, exclusions, notes, submitted_at, file_id)"
+          "id, status, sent_at, viewed_at, reminders, decline_reason, sub_id, subs(short_id, company_name, contact_name, phone, sub_trades(trades(name))), responses(price, lead_time, exclusions, notes, submitted_at, file_id), comments(id, author_name, body, created_at)"
         )
         .eq("bid_id", bid.id),
       supabase
@@ -109,6 +111,7 @@ export default async function BidDetailPage({
       phone: string | null;
       sub_trades: { trades: { name: string } | null }[];
     } | null;
+    comments: Comment[] | null;
     responses:
       | {
           price: number | null;
@@ -170,7 +173,7 @@ export default async function BidDetailPage({
       leadTime: resp.lead_time,
       submittedAt: resp.submitted_at,
       fileId: resp.file_id,
-      commentCount: 0,
+      comments: (r.comments ?? []) as Comment[],
       awarded: bid.awarded_sub_id === r.sub_id,
     };
   });
@@ -211,6 +214,9 @@ export default async function BidDetailPage({
             <Link className="btn btn-secondary" href={`/bids/${bid.short_id}/edit`}>
               <Pencil size={15} /> Edit bid
             </Link>
+          )}
+          {canEdit && quiet + (rows.length - received - quiet) > 0 && (
+            <SendAllButton quietCount={rows.length - received} />
           )}
           {rows.length > 0 && (
             <Link className="btn btn-secondary" href={`/bids/${bid.short_id}/compare`}>

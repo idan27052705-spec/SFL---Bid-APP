@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import { REMINDER_CADENCES } from "@/app/config";
 import { money, timeAgo } from "@/lib/format";
+import FileViewer from "@/components/FileViewer";
+import CommentsModal, { type Comment } from "@/components/CommentsModal";
 
 const MUTED = "color-mix(in srgb, var(--color-text) 55%, transparent)";
 const FAINT = "color-mix(in srgb, var(--color-text) 50%, transparent)";
@@ -36,6 +38,7 @@ export function BidFilesPanel({
   const [accept, setAccept] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<number | null>(null);
 
   const pick = (kind: "doc" | "photo" | "video") => {
     setAccept(
@@ -63,13 +66,6 @@ export function BidFilesPanel({
     router.refresh();
   }
 
-  async function open(id: string) {
-    const res = await fetch(`/api/files/${id}`);
-    const data = await res.json();
-    if (res.ok) window.open(data.url, "_blank", "noopener");
-    else setError(data.error || "Couldn't open that file.");
-  }
-
   return (
     <>
       <h4 style={{ margin: "0 0 10px" }}>Attached to this bid</h4>
@@ -91,7 +87,7 @@ export function BidFilesPanel({
             <div style={{ flex: 1, minWidth: 0, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis" }}>
               {f.name}
             </div>
-            <button className="btn btn-ghost" onClick={() => open(f.id)}>
+            <button className="btn btn-ghost" onClick={() => setViewing(files.indexOf(f))}>
               Open
             </button>
           </div>
@@ -122,6 +118,10 @@ export function BidFilesPanel({
             </button>
           </div>
         </>
+      )}
+
+      {viewing !== null && (
+        <FileViewer files={files} index={viewing} onClose={() => setViewing(null)} />
       )}
     </>
   );
@@ -322,7 +322,7 @@ export type ResponseCard = {
   leadTime: string | null;
   submittedAt: string | null;
   fileId: string | null;
-  commentCount: number;
+  comments: Comment[];
   awarded: boolean;
 };
 
@@ -340,6 +340,7 @@ export function ResponseCards({
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notesFor, setNotesFor] = useState<ResponseCard | null>(null);
 
   async function openFile(id: string) {
     const res = await fetch(`/api/files/${id}`);
@@ -448,9 +449,9 @@ export function ResponseCards({
                   <FileSearch size={15} /> Their quote
                 </button>
               )}
-              <button className="btn btn-secondary" disabled title="Internal notes — coming next session">
+              <button className="btn btn-secondary" onClick={() => setNotesFor(r)}>
                 <MessageSquare size={15} />
-                {r.commentCount > 0 ? `Comments (${r.commentCount})` : "Comments"}
+                {r.comments.length > 0 ? `Notes (${r.comments.length})` : "Notes"}
               </button>
               {canWrite && !awarded && (
                 <>
@@ -480,6 +481,16 @@ export function ResponseCards({
           </div>
         ))}
       </div>
+
+      {notesFor && (
+        <CommentsModal
+          invitationId={notesFor.invitationId}
+          company={notesFor.company}
+          initial={notesFor.comments}
+          canWrite={canWrite}
+          onClose={() => setNotesFor(null)}
+        />
+      )}
     </>
   );
 }
