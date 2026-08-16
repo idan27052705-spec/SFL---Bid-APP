@@ -43,16 +43,33 @@ export default function LoginForm({
   }
 
   return (
-    <form onSubmit={submit} style={{ display: "grid", gap: 16, marginTop: 20 }}>
-      <h2 style={{ margin: 0 }}>{t.signIn}</h2>
+    <form
+      onSubmit={submit}
+      style={{
+        width: "min(100%, 460px)",
+        margin: "0 auto",
+        padding: "56px 24px 80px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 18,
+      }}
+    >
+      <div>
+        <h1 style={{ fontSize: 36, margin: 0 }}>{t.signIn}</h1>
+        <div style={{ fontSize: 14, color: "color-mix(in srgb, var(--color-text) 55%, transparent)" }}>
+          {t.codeHint}
+        </div>
+      </div>
+
+      <div className="blueprint" style={{ padding: 22, display: "flex", flexDirection: "column", gap: 16 }}>
 
       {expired && (
         <div
-          className="card"
           style={{
-            borderColor: "var(--color-accent)",
-            background: "color-mix(in srgb, var(--color-accent) 8%, transparent)",
-            fontSize: 14,
+            fontSize: 13,
+            color: "var(--color-accent-800)",
+            background: "var(--color-accent-100)",
+            padding: "10px 12px",
           }}
         >
           That link has expired. Sign in with your access code, or call the
@@ -65,7 +82,7 @@ export default function LoginForm({
         <input
           id="identifier"
           className="input"
-          style={{ minHeight: 48, fontSize: 16 }}
+          style={{ minHeight: 50, fontSize: 16 }}
           autoComplete="username"
           inputMode="email"
           autoCapitalize="off"
@@ -83,7 +100,7 @@ export default function LoginForm({
         <input
           id="code"
           className="input mono"
-          style={{ minHeight: 48, fontSize: 22, letterSpacing: ".3em" }}
+          style={{ minHeight: 50, fontSize: 22, letterSpacing: ".3em" }}
           inputMode="numeric"
           autoComplete="one-time-code"
           maxLength={6}
@@ -94,25 +111,34 @@ export default function LoginForm({
             setError(null);
           }}
         />
-        <div className="text-muted" style={{ fontSize: 12, marginTop: 5 }}>
-          {t.codeHint}
-        </div>
       </div>
 
       {error && (
-        <div style={{ fontSize: 14, color: "#b3261e" }} role="alert">
+        <div
+          style={{
+            fontSize: 13,
+            color: "var(--color-accent-800)",
+            background: "var(--color-accent-100)",
+            padding: "10px 12px",
+          }}
+          role="alert"
+        >
           {error}
         </div>
       )}
 
       <button
         className="btn btn-primary"
-        style={{ minHeight: 48, fontSize: 16 }}
+        style={{ minHeight: 54, fontSize: 17 }}
         type="submit"
         disabled={busy}
       >
         {busy ? "…" : t.signIn}
       </button>
+
+        <i className="corner tl" /><i className="corner tr" />
+        <i className="corner bl" /><i className="corner br" />
+      </div>
     </form>
   );
 }

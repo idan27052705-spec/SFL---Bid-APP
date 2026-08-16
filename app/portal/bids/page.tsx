@@ -9,7 +9,9 @@ import PortalShell from "../PortalShell";
 
 export const dynamic = "force-dynamic";
 
-/** Days between today and the due date. Negative = overdue. */
+const MUTED = "color-mix(in srgb, var(--color-text) 55%, transparent)";
+const FAINT = "color-mix(in srgb, var(--color-text) 50%, transparent)";
+
 function daysLeft(due: string | null) {
   if (!due) return null;
   const d = new Date(due + "T00:00:00");
@@ -26,11 +28,11 @@ export default async function PortalBidsPage() {
   const t = STR[lang];
   const admin = createAdminClient();
 
-  // Service role bypasses RLS, so this MUST be scoped to the signed-in sub.
+  // Service role bypasses RLS — this MUST stay scoped to the signed-in sub.
   const { data: invitations } = await admin
     .from("invitations")
     .select(
-      "id, status, sent_at, bids(short_id, title, due_date, status, awarded_sub_id, projects(name, city), trades(name)), responses(price, submitted_at)"
+      "id, status, sent_at, bids(short_id, title, due_date, status, awarded_sub_id, projects(name, city), trades(name)), responses(price)"
     )
     .eq("sub_id", sub.id)
     .order("sent_at", { ascending: false });
@@ -67,100 +69,178 @@ export default async function PortalBidsPage() {
   const submitted = rows.filter((r) => !isClosed(r) && r.status === "Received");
   const past = rows.filter(isClosed);
 
-  const Card = ({ r }: { r: Row }) => {
-    const d = daysLeft(r.bid?.due_date ?? null);
-    const won = r.bid?.awarded_sub_id === sub.id;
-
-    const dueLabel =
-      d == null
-        ? ""
-        : d < 0
-          ? `${Math.abs(d)} ${t.overdue}`
-          : d === 0
-            ? t.today
-            : d === 1
-              ? t.tomorrow
-              : `${d} ${t.inDays}`;
-
-    return (
-      <Link
-        href={`/portal/bids/${r.bid?.short_id}`}
-        style={{ textDecoration: "none", color: "inherit" }}
-      >
-        <div className="card" style={{ gap: 6 }}>
-          <div className="card-kicker">{r.bid?.trades?.name}</div>
-          <div className="card-title">{r.bid?.projects?.name}</div>
-          <div style={{ fontSize: 14 }}>{r.bid?.title}</div>
-          <div
-            style={{
-              display: "flex",
-              gap: 8,
-              alignItems: "center",
-              flexWrap: "wrap",
-              marginTop: 4,
-            }}
-          >
-            {r.bid?.due_date && (
-              <span
-                className={d != null && d <= 1 ? "tag tag-outline" : "tag tag-neutral"}
-              >
-                {t.due} {formatDate(r.bid.due_date)}
-                {dueLabel ? ` · ${dueLabel}` : ""}
-              </span>
-            )}
-            {r.price != null && (
-              <span className="tag tag-accent">
-                {t.yourPrice}: {money(r.price)}
-              </span>
-            )}
-            {won && <span className="tag tag-accent">{t.awarded}</span>}
-            {r.status === "Denied" && (
-              <span className="tag tag-neutral">{t.statusDenied}</span>
-            )}
-          </div>
-        </div>
-      </Link>
-    );
+  const dueLabel = (due: string | null) => {
+    const d = daysLeft(due);
+    if (d == null) return t.due;
+    if (d < 0) return `${Math.abs(d)} ${t.overdue}`;
+    if (d === 0) return t.today;
+    if (d === 1) return t.tomorrow;
+    return `${d} ${t.inDays}`;
   };
 
-  const Section = ({
-    title,
-    items,
-    empty,
-  }: {
-    title: string;
-    items: Row[];
-    empty: string;
-  }) => (
-    <section style={{ marginBottom: 26 }}>
-      <h5 style={{ marginBottom: 10 }}>
-        {title}
-        {items.length > 0 && (
-          <span className="text-muted" style={{ fontWeight: 400 }}>
-            {" "}
-            ({items.length})
-          </span>
-        )}
-      </h5>
-      {items.length === 0 ? (
-        <p className="text-muted" style={{ fontSize: 14 }}>
-          {empty}
-        </p>
-      ) : (
-        <div style={{ display: "grid", gap: 10 }}>
-          {items.map((r) => (
-            <Card key={r.id} r={r} />
-          ))}
-        </div>
-      )}
-    </section>
-  );
+  const headline =
+    waiting.length === 0
+      ? t.nothingWaiting
+      : `${waiting.length} ${waiting.length === 1 ? "bid" : "bids"} ${t.waiting.toLowerCase()}`;
 
   return (
     <PortalShell lang={lang} subName={sub.company_name}>
-      <Section title={t.waiting} items={waiting} empty={t.nothingWaiting} />
-      <Section title={t.submitted} items={submitted} empty={t.nothing} />
-      {past.length > 0 && <Section title={t.past} items={past} empty={t.nothing} />}
+      <div
+        style={{
+          width: "min(100%, 1080px)",
+          margin: "0 auto",
+          padding: "32px 24px 72px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 34,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 20, flexWrap: "wrap" }}>
+          <div style={{ marginRight: "auto", minWidth: 0 }}>
+            <div style={{ fontSize: 11, letterSpacing: ".16em", textTransform: "uppercase", color: "var(--color-accent-700)" }}>
+              {sub.company_name}
+            </div>
+            <h1 style={{ fontSize: 40, margin: "2px 0 0" }}>{headline}</h1>
+          </div>
+          <div style={{ display: "flex", gap: 26 }}>
+            {[
+              [submitted.length, t.submitted],
+              [past.length, t.past],
+            ].map(([n, label]) => (
+              <div key={String(label)}>
+                <div style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 28, lineHeight: 1 }}>
+                  {n}
+                </div>
+                <div style={{ fontSize: 11, letterSpacing: ".12em", textTransform: "uppercase", color: FAINT }}>
+                  {label}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 14 }}>
+            <h4 style={{ margin: 0, letterSpacing: ".02em" }}>{t.waiting}</h4>
+            <span style={{ fontSize: 12, color: FAINT }}>{waiting.length}</span>
+          </div>
+
+          {waiting.length === 0 ? (
+            <div className="blueprint" style={{ padding: 28, textAlign: "center", fontSize: 14, color: MUTED }}>
+              {t.nothingWaiting}
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px,1fr))", gap: 16 }}>
+              {waiting.map((r) => (
+                <Link
+                  key={r.id}
+                  href={`/portal/bids/${r.bid?.short_id}`}
+                  className="blueprint"
+                  style={{
+                    padding: 20,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 6,
+                    textDecoration: "none",
+                    color: "inherit",
+                  }}
+                >
+                  <div style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 24, lineHeight: 1.05 }}>
+                    {r.bid?.trades?.name}
+                  </div>
+                  <div style={{ fontSize: 15 }}>{r.bid?.projects?.name}</div>
+                  <div style={{ fontSize: 13, color: MUTED }}>{r.bid?.projects?.city}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
+                    <span className="tag tag-accent">{dueLabel(r.bid?.due_date ?? null)}</span>
+                    <span
+                      style={{
+                        marginLeft: "auto",
+                        fontFamily: "var(--font-heading)",
+                        fontWeight: 600,
+                        fontSize: 14,
+                        color: "var(--color-accent-700)",
+                      }}
+                    >
+                      {t.submitQuote} →
+                    </span>
+                  </div>
+                  <i className="corner tl" /><i className="corner tr" />
+                  <i className="corner bl" /><i className="corner br" />
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {submitted.length > 0 && (
+          <div>
+            <h4 style={{ margin: "0 0 10px" }}>{t.submitted}</h4>
+            <div className="blueprint" style={{ padding: "6px 18px" }}>
+              <table className="table">
+                <tbody>
+                  {submitted.map((r) => (
+                    <tr key={r.id} className="clickrow">
+                      <td>
+                        <Link
+                          href={`/portal/bids/${r.bid?.short_id}`}
+                          style={{ fontWeight: 500, textDecoration: "none", color: "inherit" }}
+                        >
+                          {r.bid?.trades?.name}
+                        </Link>
+                        <div style={{ fontSize: 12, color: MUTED }}>{r.bid?.projects?.name}</div>
+                      </td>
+                      <td className="tabular" style={{ textAlign: "right", fontSize: 15 }}>
+                        {r.price != null ? money(r.price) : "—"}
+                      </td>
+                      <td style={{ textAlign: "right", width: 120 }}>
+                        <span className="tag tag-accent">{t.statusReceived}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {past.length > 0 && (
+          <div>
+            <h4 style={{ margin: "0 0 10px" }}>{t.past}</h4>
+            <div className="blueprint" style={{ padding: "6px 18px" }}>
+              <table className="table">
+                <tbody>
+                  {past.map((r) => {
+                    const won = r.bid?.awarded_sub_id === sub.id;
+                    return (
+                      <tr key={r.id} className="clickrow">
+                        <td>
+                          <Link
+                            href={`/portal/bids/${r.bid?.short_id}`}
+                            style={{ fontWeight: 500, textDecoration: "none", color: "inherit" }}
+                          >
+                            {r.bid?.trades?.name}
+                          </Link>
+                          <div style={{ fontSize: 12, color: MUTED }}>
+                            {r.bid?.projects?.name} · {formatDate(r.bid?.due_date ?? null)}
+                          </div>
+                        </td>
+                        <td className="tabular" style={{ textAlign: "right", fontSize: 15 }}>
+                          {r.price != null ? money(r.price) : "—"}
+                        </td>
+                        <td style={{ textAlign: "right", width: 140 }}>
+                          <span className={won ? "tag tag-accent" : "tag tag-neutral"}>
+                            {won ? t.awarded : r.status === "Denied" ? t.statusDenied : t.notAwarded}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
     </PortalShell>
   );
 }
