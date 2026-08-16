@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireApiUser, forbidden, badRequest } from "@/lib/api";
-import { generateAccessCode, hashAccessCode } from "@/lib/accessCode";
+import { issueAccessCode } from "@/lib/accessCode";
 
 /** POST /api/subs — add a subcontractor and issue their access code. */
 export async function POST(request: Request) {
@@ -55,14 +55,8 @@ export async function POST(request: Request) {
   if (error) return badRequest("Couldn't add that sub. Try again.");
 
   // Code needs the sub id as salt, so it's set right after insert.
-  const code = generateAccessCode();
-  await supabase
-    .from("subs")
-    .update({
-      access_code_hash: hashAccessCode(code, sub.id),
-      code_issued_at: new Date().toISOString(),
-    })
-    .eq("id", sub.id);
+  const issued = issueAccessCode(sub.id);
+  await supabase.from("subs").update(issued.columns).eq("id", sub.id);
 
   const rows = tradeIds.map((trade_id) => ({ sub_id: sub.id, trade_id }));
   if (rows.length) await supabase.from("sub_trades").insert(rows);
@@ -75,6 +69,5 @@ export async function POST(request: Request) {
     actor_id: user.id,
   });
 
-  // The only time the plain code is ever returned.
-  return NextResponse.json({ ok: true, sub, code });
+  return NextResponse.json({ ok: true, sub, code: issued.code });
 }

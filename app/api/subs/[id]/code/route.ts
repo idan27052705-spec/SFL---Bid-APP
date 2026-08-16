@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireApiUser, forbidden, badRequest, notFound } from "@/lib/api";
-import { generateAccessCode, hashAccessCode } from "@/lib/accessCode";
+import { issueAccessCode } from "@/lib/accessCode";
 
 /**
  * POST /api/subs/:shortId/code — issue a new access code.
@@ -28,13 +28,12 @@ export async function POST(
 
   if (!sub) return notFound("Sub not found.");
 
-  const code = generateAccessCode();
+  const issued = issueAccessCode(sub.id);
 
   const { error } = await supabase
     .from("subs")
     .update({
-      access_code_hash: hashAccessCode(code, sub.id),
-      code_issued_at: new Date().toISOString(),
+      ...issued.columns,
       session_epoch: (sub.session_epoch ?? 1) + 1,
     })
     .eq("id", sub.id);
@@ -49,5 +48,5 @@ export async function POST(
     actor_id: user.id,
   });
 
-  return NextResponse.json({ ok: true, code });
+  return NextResponse.json({ ok: true, code: issued.code });
 }

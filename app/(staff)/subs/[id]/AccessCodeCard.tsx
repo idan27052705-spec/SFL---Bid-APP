@@ -10,12 +10,14 @@ export default function AccessCodeCard({
   companyName,
   issuedAt,
   hasCode,
+  code: storedCode,
   canWrite,
 }: {
   shortId: number;
   companyName: string;
   issuedAt: string | null;
   hasCode: boolean;
+  code: string | null;
   canWrite: boolean;
 }) {
   const router = useRouter();
@@ -45,16 +47,31 @@ export default function AccessCodeCard({
       <div className="card-kicker">Portal access</div>
 
       <div style={{ fontSize: 14 }}>
-        {hasCode ? (
+        {storedCode ? (
           <>
-            <div className="mono" style={{ fontSize: 22, letterSpacing: ".16em" }}>
-              • • • • • •
+            <div
+              className="mono"
+              style={{ fontSize: 30, letterSpacing: ".16em", lineHeight: 1.1 }}
+            >
+              {storedCode}
             </div>
             <div className="text-muted" style={{ fontSize: 12 }}>
-              Issued {issuedAt ? timeAgo(issuedAt) : "—"} · stored scrambled, can&apos;t
-              be read back
+              Issued {issuedAt ? timeAgo(issuedAt) : "—"} · goes out in every
+              invitation and reminder
             </div>
+            <button
+              className="btn btn-ghost"
+              style={{ padding: 0, fontSize: 12, marginTop: 4 }}
+              onClick={() => navigator.clipboard?.writeText(storedCode)}
+            >
+              Copy code
+            </button>
           </>
+        ) : hasCode ? (
+          <div className="text-muted">
+            This code was issued before codes could be shown. Issue a new one to
+            see it.
+          </div>
         ) : (
           <div className="text-muted">No code issued yet.</div>
         )}

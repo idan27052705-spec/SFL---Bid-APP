@@ -4,6 +4,7 @@ import { requireUser, canWrite } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, money } from "@/lib/format";
 import AccessCodeCard from "./AccessCodeCard";
+import { revealCode } from "@/lib/accessCode";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export default async function SubDetailPage({
   const { data: sub } = await supabase
     .from("subs")
     .select(
-      "id, short_id, company_name, contact_name, email, phone, city, status, access_code_hash, code_issued_at, sub_trades(trades(name))"
+      "id, short_id, company_name, contact_name, email, phone, city, status, access_code_hash, access_code_enc, code_issued_at, sub_trades(trades(name))"
     )
     .eq("short_id", Number(params.id))
     .single();
@@ -153,6 +154,7 @@ export default async function SubDetailPage({
             companyName={sub.company_name}
             issuedAt={sub.code_issued_at}
             hasCode={!!sub.access_code_hash}
+            code={revealCode(sub.access_code_enc)}
             canWrite={canWrite(user)}
           />
         </div>

@@ -48,7 +48,8 @@ Look: square corners, hairline borders, transparent fills. Headings in Barlow Co
 | `/bids` | **built** — all packages, search, status filter, responses count |
 | `/bids/[id]` | **built** — scope, line items, drawings, subs invited, activity |
 | `/projects/[id]/bids/new`, `/bids/[id]/edit` | **built** — the bid builder (shared `components/BidBuilder.tsx`) |
-| `/bids/[id]/invite`, `/bids/[id]/compare` | planned (S6, S8) |
+| `/bids/[id]/invite` | **built** — pick subs (trade-filtered), select all, send real emails |
+| `/bids/[id]/compare` | planned (S8) |
 | `/subs` | **built** — search, trade filter, Add sub modal, code issued once |
 | `/subs/[id]` | **built** — details, bid history, portal access / regenerate code |
 | `/activity` | planned (S8) |
@@ -64,7 +65,7 @@ Look: square corners, hairline borders, transparent fills. Headings in Barlow Co
 
 **Built:** `POST /api/account` (own name/email/password) · `POST /api/projects` ·
 `POST /api/projects/:shortId/files` · `GET|DELETE /api/files/:id` (signed URL / delete) ·
-`POST /api/subs` · `POST /api/subs/:shortId/code` · `POST /api/bids/save` (create + update)
+`POST /api/subs` · `POST /api/subs/:shortId/code` · `POST /api/bids/save` (create + update) · `POST /api/bids/:shortId/invitations` · `POST /api/invitations/:id/resend` · `DELETE /api/invitations/:id`
 
 Every route: identity from the auth cookie only, `viewer` rejected on writes,
 company scoping through RLS.
@@ -81,7 +82,8 @@ Supabase project `cxgmvaonfnfxviaqtdcu`. Migrations in `supabase/migrations/`
 (`0001_init.sql` schema + RLS + storage bucket, `0002_seed.sql` company, trades,
 settings, email templates).
 
-Migration `0003_bid_files.sql` adds `bid_files` (a drawing can be on several packages).
+Migrations `0003_bid_files.sql` adds `bid_files`; `0004_access_code_recoverable.sql` adds `subs.access_code_enc`.
+`0003` (a drawing can be on several packages).
 
 Tables: `companies`, `users`, `projects`, `trades`, `bids`, `bid_line_items`, `subs`, `invitations`, `responses`, `response_line_items`, `messages`, `comments` (internal only), `change_requests`, `files`, `activity`, `settings`, `email_templates`.
 
@@ -100,7 +102,9 @@ Every URL-facing table carries `short_id SERIAL UNIQUE`.
 | `middleware.ts` | Route guard. Public: `/login`, `/auth`, `/portal`, `/api/portal` |
 | `lib/api.ts` | `requireApiUser()`, `badRequest()`, `forbidden()`, `notFound()` for API routes |
 | `lib/format.ts` | `money`, `formatDate`, `formatDateShort`, `timeAgo`, `formatBytes`, `fileKind` |
-| `lib/accessCode.ts` | Generate / hash / verify sub access codes (SHA-256 salted per sub) |
+| `lib/accessCode.ts` | Issue / verify / reveal sub access codes. Stored **encrypted** (AES-256-GCM, key derived from `PORTAL_TOKEN_SECRET`) plus a salted hash for sign-in — the office must be able to tell a sub their code |
+| `lib/email.ts` | Resend wrapper, `{merge}` template rendering, plain-text → branded HTML |
+| `lib/portalToken.ts` | Signed one-tap portal links. HMAC of invitation id + sub `session_epoch`, computed not stored — regenerating a code kills every old link |
 | `components/BidBuilder.tsx` | Bid builder used by both new and edit — trade, due date, title, scope, line items, drawing picker, cadence |
 | `components/Modal.tsx` | House modal + `ModalField` — centred, z-70, Esc + click-outside close, body scroll locked |
 
@@ -112,7 +116,14 @@ Every URL-facing table carries `short_id SERIAL UNIQUE`.
 - **Subs**: no Supabase account. Email/phone + 6-digit access code, verified server-side
   against `subs.access_code_hash`. Portal routes use the service-role client and must
   check ownership on every record. `subs.session_epoch` invalidates live sessions when a
-  code is regenerated. *(built in S7)*
+  code is regenerated. *(portal itself built in S7)*
+- **Access codes are recoverable by design.** They behave like a password the office
+  issues, so every invitation and reminder email carries the sub's own code and the sub
+  page displays it. Trade-off accepted knowingly: a database leak alone still reveals
+  nothing (the key lives only in the server environment), but this is weaker than a
+  one-way hash.
+- **Portal links**: `/portal/open/<token>` — one tap from the email, no code typing.
+  Tied to one invitation and one sub; dies when the code is regenerated.
 
 ## Env vars
 
@@ -123,5 +134,5 @@ See `.env.example`. All four are set in Vercel (Production + Preview) and in loc
 | Integration | Status |
 |---|---|
 | Supabase | **connected** — project `cxgmvaonfnfxviaqtdcu` |
-| Resend (email) | not connected (S6) |
+| Resend (email) | **live** — domain `sflbuildersgroup.com` verified, sending from `bids@sflbuildersgroup.com` |
 | Twilio (SMS) | deferred — after launch |
