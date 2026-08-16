@@ -1,47 +1,42 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Blueprint from "@/components/Blueprint";
 import Modal, { ModalField } from "@/components/Modal";
-import { money, formatDate, timeAgo } from "@/lib/format";
+import { money, timeAgo } from "@/lib/format";
+
+const MUTED = "color-mix(in srgb, var(--color-text) 55%, transparent)";
 
 export type Quote = {
   invitationId: string;
   subId: string;
   company: string;
-  contact: string | null;
-  status: string;
-  price: number | null;
+  price: number;
+  rank: string;
   leadTime: string | null;
   exclusions: string | null;
   notes: string | null;
   submittedAt: string | null;
   fileId: string | null;
-  fileName: string | null;
-  declineReason: string | null;
-  viewedAt: string | null;
-  sentAt: string | null;
+  awarded: boolean;
 };
 
+/**
+ * Compare is a matrix: one column per sub, one row per thing you'd want
+ * to line up. Reading across a row is the whole point — you can see at a
+ * glance who's excluding what.
+ */
 export default function CompareClient({
   bidShortId,
-  tradeName,
-  projectName,
-  projectShortId,
-  dueDate,
-  awardedSubId,
   quotes,
   canWrite,
+  awarded,
 }: {
   bidShortId: number;
-  tradeName: string;
-  projectName: string;
-  projectShortId: number;
-  dueDate: string | null;
-  awardedSubId: string | null;
   quotes: Quote[];
   canWrite: boolean;
+  awarded: boolean;
 }) {
   const router = useRouter();
   const [awarding, setAwarding] = useState<Quote | null>(null);
@@ -51,14 +46,14 @@ export default function CompareClient({
   const [error, setError] = useState<string | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
 
-  const priced = quotes
-    .filter((q) => q.price != null && q.status !== "Denied")
-    .sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
-  const others = quotes.filter((q) => q.price == null || q.status === "Denied");
-
-  const low = priced.length > 0 ? priced[0].price : null;
-  const high = priced.length > 0 ? priced[priced.length - 1].price : null;
-  const spread = low != null && high != null ? high - low : null;
+  const rows: [string, (q: Quote) => string][] = [
+    ["Total price", (q) => money(q.price)],
+    ["vs. low bid", (q) => q.rank],
+    ["Lead time", (q) => q.leadTime || "—"],
+    ["Exclusions", (q) => q.exclusions || "None stated"],
+    ["Notes", (q) => q.notes || "—"],
+    ["Submitted", (q) => (q.submittedAt ? timeAgo(q.submittedAt) : "—")],
+  ];
 
   async function openFile(id: string) {
     const res = await fetch(`/api/files/${id}`);
@@ -78,7 +73,6 @@ export default function CompareClient({
     });
     const data = await res.json();
     setBusy(false);
-
     if (!res.ok) {
       setError(data.error || "Couldn't award.");
       return;
@@ -93,13 +87,11 @@ export default function CompareClient({
   }
 
   async function deny() {
-    if (!denying) return;
-    if (!reason.trim()) {
+    if (!denying || !reason.trim()) {
       setError("Give a reason.");
       return;
     }
     setBusy(true);
-    setError(null);
     const res = await fetch(`/api/invitations/${denying.invitationId}/deny`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -107,7 +99,6 @@ export default function CompareClient({
     });
     const data = await res.json();
     setBusy(false);
-
     if (!res.ok) {
       setError(data.error || "Couldn't save.");
       return;
@@ -117,191 +108,120 @@ export default function CompareClient({
     router.refresh();
   }
 
-  const awarded = !!awardedSubId;
+  if (quotes.length === 0)
+    return (
+      <Blueprint style={{ padding: 26 }}>
+        <div className="card-title">No prices yet</div>
+        <p style={{ fontSize: 14, color: MUTED, margin: "6px 0 0" }}>
+          Nothing to compare until a sub sends a price. They appear here the
+          moment they do.
+        </p>
+      </Blueprint>
+    );
 
   return (
     <>
-      <div className="pagehead">
-        <h6 className="text-muted">
-          <Link className="rowlink" href={`/projects/${projectShortId}`}>
-            {projectName}
-          </Link>
-        </h6>
-        <h1 style={{ marginBottom: 4 }}>Compare — {tradeName}</h1>
-        <p className="text-muted">
-          {priced.length} price{priced.length === 1 ? "" : "s"} in
-          {dueDate ? ` · due ${formatDate(dueDate)}` : ""}
-          {spread != null && spread > 0
-            ? ` · ${money(spread)} between low and high`
-            : ""}
-        </p>
-      </div>
+      {banner && (
+        <Blueprint
+          style={{
+            padding: "12px 16px",
+            marginBottom: 16,
+            borderColor: "var(--color-accent)",
+            background: "color-mix(in srgb, var(--color-accent) 10%, transparent)",
+            fontSize: 14,
+          }}
+        >
+          {banner}
+        </Blueprint>
+      )}
+      {error && (
+        <div style={{ fontSize: 13, color: "#b3261e", marginBottom: 12 }} role="alert">
+          {error}
+        </div>
+      )}
 
-      <div className="pagebody">
-        {banner && (
-          <div
-            className="card"
-            style={{
-              borderColor: "var(--color-accent)",
-              background: "color-mix(in srgb, var(--color-accent) 10%, transparent)",
-              marginBottom: 16,
-            }}
-          >
-            {banner}
-          </div>
-        )}
-        {error && (
-          <div style={{ fontSize: 13, color: "#b3261e", marginBottom: 12 }} role="alert">
-            {error}
-          </div>
-        )}
-
-        {priced.length === 0 ? (
-          <div className="card" style={{ padding: 26, alignItems: "flex-start" }}>
-            <div className="card-title">No prices yet</div>
-            <p className="card-body">
-              Nothing to compare until a sub sends a price. They show up here the
-              moment they do.
-            </p>
-            <Link className="btn btn-secondary" href={`/bids/${bidShortId}`}>
-              Back to the package
-            </Link>
-          </div>
-        ) : (
-          <div style={{ display: "grid", gap: 12 }}>
-            {priced.map((q, i) => {
-              const isLow = q.price === low;
-              const won = q.subId === awardedSubId;
-              const overLow = low != null && q.price != null ? q.price - low : 0;
-
-              return (
-                <div
-                  key={q.invitationId}
-                  className="card"
-                  style={{
-                    gap: 10,
-                    borderColor: won
-                      ? "var(--color-accent)"
-                      : isLow
-                        ? "var(--color-accent)"
-                        : "var(--color-divider)",
-                    background: won
-                      ? "color-mix(in srgb, var(--color-accent) 8%, transparent)"
-                      : "transparent",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-                    <div style={{ flex: 1, minWidth: 180 }}>
-                      <div className="card-title">{q.company}</div>
-                      <div className="text-muted" style={{ fontSize: 12 }}>
-                        {q.contact}
-                        {q.submittedAt ? ` · sent ${timeAgo(q.submittedAt)}` : ""}
+      <Blueprint style={{ padding: "12px 18px 6px" }}>
+        <div className="tablewrap">
+          <table className="table" style={{ minWidth: 720 }}>
+            <thead>
+              <tr>
+                <th>Line</th>
+                {quotes.map((q) => (
+                  <th key={q.invitationId} style={{ textAlign: "right" }}>
+                    {q.company}
+                    {q.awarded && (
+                      <div>
+                        <span className="tag tag-accent">Awarded</span>
                       </div>
-                    </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div
-                        style={{
-                          fontFamily: "var(--font-heading)",
-                          fontWeight: 600,
-                          fontSize: 28,
-                          lineHeight: 1,
+                    )}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(([labelText, pick]) => (
+                <tr key={labelText}>
+                  <td style={{ fontSize: 13, fontWeight: 500 }}>{labelText}</td>
+                  {quotes.map((q) => (
+                    <td
+                      key={q.invitationId}
+                      className="tabular"
+                      style={{
+                        textAlign: "right",
+                        fontSize: 13,
+                        fontWeight: labelText === "Total price" ? 600 : 400,
+                      }}
+                    >
+                      {pick(q)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+
+              <tr>
+                <td style={{ fontSize: 13, fontWeight: 500 }}>Their quote</td>
+                {quotes.map((q) => (
+                  <td key={q.invitationId} style={{ textAlign: "right" }}>
+                    {q.fileId ? (
+                      <button className="btn btn-ghost" onClick={() => openFile(q.fileId!)}>
+                        Open
+                      </button>
+                    ) : (
+                      <span style={{ fontSize: 13, color: MUTED }}>—</span>
+                    )}
+                  </td>
+                ))}
+              </tr>
+
+              {canWrite && !awarded && (
+                <tr>
+                  <td />
+                  {quotes.map((q) => (
+                    <td key={q.invitationId} style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                      <button
+                        className="btn btn-ghost"
+                        onClick={() => {
+                          setDenying(q);
+                          setReason("");
                         }}
                       >
-                        {money(q.price)}
-                      </div>
-                      {i > 0 && overLow > 0 && (
-                        <div className="text-muted" style={{ fontSize: 12 }}>
-                          +{money(overLow)} over low
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {won && <span className="tag tag-accent">Awarded</span>}
-                    {isLow && !won && <span className="tag tag-outline">Low bid</span>}
-                    {q.leadTime && (
-                      <span className="tag tag-neutral">Lead time: {q.leadTime}</span>
-                    )}
-                  </div>
-
-                  {q.exclusions && (
-                    <div style={{ fontSize: 14 }}>
-                      <strong>Not included:</strong> {q.exclusions}
-                    </div>
-                  )}
-                  {q.notes && (
-                    <div style={{ fontSize: 14 }} className="text-muted">
-                      {q.notes}
-                    </div>
-                  )}
-
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {q.fileId && (
-                      <button
-                        className="btn btn-secondary"
-                        onClick={() => openFile(q.fileId!)}
-                      >
-                        Open their quote
+                        Deny
                       </button>
-                    )}
-                    {canWrite && !awarded && (
-                      <>
-                        <button className="btn btn-primary" onClick={() => setAwarding(q)}>
-                          Award to {q.company.split(" ")[0]}
-                        </button>
-                        <button
-                          className="btn btn-ghost"
-                          onClick={() => {
-                            setDenying(q);
-                            setReason("");
-                          }}
-                        >
-                          Rule out
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {others.length > 0 && (
-          <section style={{ marginTop: 24 }}>
-            <h5>Everyone else</h5>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Sub</th>
-                  <th>Status</th>
-                  <th>Opened</th>
-                  <th>Reason</th>
+                      <button className="btn btn-primary" onClick={() => setAwarding(q)}>
+                        Award
+                      </button>
+                    </td>
+                  ))}
                 </tr>
-              </thead>
-              <tbody>
-                {others.map((q) => (
-                  <tr key={q.invitationId}>
-                    <td>{q.company}</td>
-                    <td>
-                      <span className="tag tag-neutral">{q.status}</span>
-                    </td>
-                    <td className="text-muted">
-                      {q.viewedAt ? timeAgo(q.viewedAt) : "never opened"}
-                    </td>
-                    <td className="text-muted">{q.declineReason || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-        )}
-      </div>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Blueprint>
 
       {awarding && (
         <Modal
-          title={`Award ${tradeName} to ${awarding.company}?`}
+          title={`Award to ${awarding.company}?`}
           subtitle={money(awarding.price)}
           onClose={() => setAwarding(null)}
           footer={
@@ -316,10 +236,10 @@ export default function CompareClient({
           }
         >
           <p style={{ fontSize: 14, margin: 0 }}>
-            {awarding.company} gets an email telling them they won. Every
-            reminder on this package stops, for everyone.
+            {awarding.company} gets an email telling them they won. Every reminder
+            on this package stops, for everyone.
           </p>
-          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+          <p style={{ fontSize: 13, color: MUTED, margin: 0 }}>
             The package locks after this — the scope they priced can&apos;t be
             edited afterwards. Nothing is sent to the subs who didn&apos;t win.
           </p>
@@ -351,7 +271,7 @@ export default function CompareClient({
             textarea
             placeholder="Scope gaps, lead time too long, wrong trade…"
           />
-          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+          <p style={{ fontSize: 13, color: MUTED, margin: 0 }}>
             Their price stays on the record with this reason next to it, and
             reminders stop.
           </p>

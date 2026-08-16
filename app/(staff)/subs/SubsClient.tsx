@@ -2,18 +2,25 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { Plus } from "lucide-react";
+import Blueprint from "@/components/Blueprint";
 import NewSubModal, { type Trade } from "./NewSubModal";
+
+const MUTED = "color-mix(in srgb, var(--color-text) 55%, transparent)";
+const FAINT = "color-mix(in srgb, var(--color-text) 50%, transparent)";
 
 export type SubRow = {
   id: string;
   short_id: number;
-  company_name: string;
-  contact_name: string | null;
-  email: string | null;
-  phone: string | null;
-  city: string | null;
-  status: string;
+  company: string;
+  contact: string;
+  phone: string;
+  city: string;
   trades: string[];
+  invited: number;
+  responded: number;
+  code: string | null;
+  status: string;
 };
 
 export default function SubsClient({
@@ -26,133 +33,128 @@ export default function SubsClient({
   canWrite: boolean;
 }) {
   const [search, setSearch] = useState("");
-  const [trade, setTrade] = useState("All trades");
+  const [trade, setTrade] = useState("All");
   const [modal, setModal] = useState(false);
 
   const rows = useMemo(() => {
     const s = search.trim().toLowerCase();
     return subs.filter((x) => {
-      if (trade !== "All trades" && !x.trades.includes(trade)) return false;
+      if (trade !== "All" && !x.trades.includes(trade)) return false;
       if (!s) return true;
-      return [x.company_name, x.contact_name, x.email, x.city]
-        .filter(Boolean)
+      return [x.company, x.contact, x.city, x.trades.join(" ")]
         .join(" ")
         .toLowerCase()
         .includes(s);
     });
   }, [subs, search, trade]);
 
+  const filters = ["All", ...trades.map((t) => t.name)];
+
   return (
     <>
-      <div className="pagehead">
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
-          <div style={{ flex: 1, minWidth: 200 }}>
-            <h6 className="text-muted">Subs</h6>
-            <h1 style={{ marginBottom: 0 }}>
-              {subs.length} subcontractor{subs.length === 1 ? "" : "s"}
-            </h1>
+      <header
+        className="pagehead"
+        style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", padding: "18px 28px", borderBottom: "1px solid var(--color-divider)" }}
+      >
+        <div style={{ marginRight: "auto" }}>
+          <h1 style={{ fontSize: 30, margin: 0 }}>Subcontractors</h1>
+          <div style={{ fontSize: 13, color: MUTED }}>
+            {subs.length} compan{subs.length === 1 ? "y" : "ies"}
           </div>
-          {canWrite && (
-            <button className="btn btn-primary" onClick={() => setModal(true)}>
-              Add sub
+        </div>
+        <input
+          className="input"
+          style={{ width: 240 }}
+          placeholder="Search subs"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        {canWrite && (
+          <button className="btn btn-primary blueprint" onClick={() => setModal(true)}>
+            <Plus size={15} /> Add sub
+            <i className="corner tl" /><i className="corner tr" />
+            <i className="corner bl" /><i className="corner br" />
+          </button>
+        )}
+      </header>
+
+      <div className="pagebody" style={{ padding: "26px 28px 40px" }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+          {filters.map((f) => (
+            <button
+              key={f}
+              className="btn btn-secondary"
+              style={{
+                fontSize: 12,
+                padding: "4px 10px",
+                background:
+                  trade === f ? "color-mix(in srgb, var(--color-accent) 16%, transparent)" : "transparent",
+              }}
+              onClick={() => setTrade(f)}
+            >
+              {f}
             </button>
-          )}
-        </div>
-      </div>
-
-      <div className="pagebody">
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-          <input
-            className="input"
-            style={{ maxWidth: 280 }}
-            placeholder="Search company, contact, email…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <select
-            className="input"
-            style={{ maxWidth: 220 }}
-            value={trade}
-            onChange={(e) => setTrade(e.target.value)}
-          >
-            <option>All trades</option>
-            {trades.map((t) => (
-              <option key={t.id}>{t.name}</option>
-            ))}
-          </select>
+          ))}
         </div>
 
-        {rows.length === 0 ? (
-          <div className="card" style={{ padding: 28, alignItems: "flex-start" }}>
-            <div className="card-title">
-              {subs.length === 0 ? "No subs yet" : "Nothing matches that"}
-            </div>
-            <p className="card-body">
-              {subs.length === 0
-                ? "Add the subs you actually bid with. Each one gets a 6-digit access code for the portal."
-                : "Try a different search or trade filter."}
-            </p>
-            {subs.length === 0 && canWrite && (
-              <button className="btn btn-primary" onClick={() => setModal(true)}>
-                Add sub
-              </button>
-            )}
-          </div>
-        ) : (
+        <Blueprint style={{ padding: "12px 18px 6px" }}>
           <div className="tablewrap">
-            <table className="table">
+            <table className="table" style={{ minWidth: 860 }}>
               <thead>
                 <tr>
                   <th>Company</th>
                   <th>Contact</th>
                   <th>Trades</th>
-                  <th>City</th>
-                  <th>Phone</th>
-                  <th>Status</th>
+                  <th>Invited</th>
+                  <th>Response rate</th>
+                  <th>Access code</th>
+                  <th style={{ textAlign: "right" }}>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((s) => (
-                  <tr key={s.id}>
-                    <td>
-                      <Link className="rowlink" href={`/subs/${s.short_id}`}>
-                        <strong>{s.company_name}</strong>
-                      </Link>
-                      <div className="text-muted" style={{ fontSize: 12 }}>
-                        {s.email}
-                      </div>
-                    </td>
-                    <td>{s.contact_name || "—"}</td>
-                    <td style={{ maxWidth: 240 }}>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                        {s.trades.length === 0 ? (
-                          <span className="text-muted">—</span>
-                        ) : (
-                          s.trades.map((t) => (
-                            <span key={t} className="tag tag-neutral">
-                              {t}
-                            </span>
-                          ))
-                        )}
-                      </div>
-                    </td>
-                    <td>{s.city || "—"}</td>
-                    <td>{s.phone || "—"}</td>
-                    <td>
-                      <span
-                        className={
-                          s.status === "Active" ? "tag tag-accent" : "tag tag-neutral"
-                        }
-                      >
-                        {s.status}
-                      </span>
+                {rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ color: MUTED }}>
+                      {subs.length === 0
+                        ? "No subs yet. Add the ones you actually bid with."
+                        : "Nothing matches that."}
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  rows.map((s) => (
+                    <tr key={s.id} className="clickrow">
+                      <td>
+                        <Link className="rowlink" href={`/subs/${s.short_id}`} style={{ fontWeight: 500 }}>
+                          {s.company}
+                        </Link>
+                        <div style={{ fontSize: 12, color: MUTED }}>{s.city}</div>
+                      </td>
+                      <td style={{ fontSize: 13 }}>
+                        {s.contact || "—"}
+                        <div style={{ fontSize: 11, color: FAINT }}>{s.phone}</div>
+                      </td>
+                      <td style={{ fontSize: 13 }}>{s.trades.join(", ") || "—"}</td>
+                      <td style={{ fontSize: 13 }}>{s.invited}</td>
+                      <td style={{ fontSize: 13 }}>
+                        {s.invited === 0
+                          ? "—"
+                          : `${Math.round((s.responded / s.invited) * 100)}% · ${s.responded} of ${s.invited}`}
+                      </td>
+                      <td className="mono" style={{ fontSize: 13, letterSpacing: ".08em" }}>
+                        {s.code ?? "—"}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <span className={s.status === "Active" ? "tag tag-accent" : "tag tag-neutral"}>
+                          {s.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
-        )}
+        </Blueprint>
       </div>
 
       {modal && <NewSubModal trades={trades} onClose={() => setModal(false)} />}
