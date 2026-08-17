@@ -353,6 +353,11 @@ select.input { appearance: none; background-image: none; }
 
 @media (max-width: 640px) {
   h1 { font-size: 25px; }
+
+  /* Tab labels must never wrap — "Cost summary" broke onto two lines
+     and pushed the underline off its own tab. The row scrolls instead. */
+  .tab { white-space: nowrap; margin-right: 14px; font-size: 14px; }
+
   h2 { font-size: 22px; }
   h3 { font-size: 20px; }
   .pagehead { padding-top: 16px; }
@@ -363,8 +368,10 @@ select.input { appearance: none; background-image: none; }
   .btn-ghost { min-height: 0; }
   .input { min-height: 44px; font-size: 16px; }
 
-  /* Header rows stack instead of squeezing the title. */
-  .pagehead .btn, .pagehead .btn-primary { width: 100%; }
+  /* Header actions share rows two-up instead of one giant stack —
+     three full-width buttons pushed the content off the first screen. */
+  .pagehead .btn { flex: 1 1 44%; min-width: 44%; }
+  .pagehead .btn-primary { flex: 1 1 100%; min-width: 100%; }
 
   /* Modals sit against the bottom of the screen, where the thumb is. */
   .dialog-backdrop { align-items: flex-end; padding: 0; }
@@ -381,4 +388,67 @@ select.input { appearance: none; background-image: none; }
 
   /* Side-by-side field pairs stack. */
   .fieldrow { grid-template-columns: 1fr !important; }
+
+  /* Pricing lines: the fixed 26/1fr/90/110/40 grid squeezed the
+     description column to ZERO width on a phone — you couldn't type a
+     line item at all. Restack: description on its own row, then
+     qty / unit / remove beneath it. */
+  .pricelinehead { display: none !important; }
+  .priceline {
+    grid-template-columns: 1fr 90px 40px !important;
+    grid-template-areas: "desc desc desc" "qty unit remove" !important;
+    row-gap: 8px !important;
+  }
+  .priceline > :nth-child(1) { display: none; }          /* row number */
+  .priceline > :nth-child(2) { grid-area: desc; }        /* description */
+  .priceline > :nth-child(3) { grid-area: qty; }
+  .priceline > :nth-child(4) { grid-area: unit; }
+  .priceline > :nth-child(5) { grid-area: remove; justify-self: end; }
+  .pricelinedetail { padding-left: 0 !important; }
+
+  /* Custom fields had the same zero-width collapse: name / value / token
+     / remove in a fixed 4-column grid. Stack them. */
+  .cfieldhead { display: none !important; }
+  .cfieldrow {
+    grid-template-columns: 1fr 40px !important;
+    grid-template-areas: "name name" "value value" "token remove" !important;
+    row-gap: 6px !important;
+    padding: 10px 0 !important;
+    border-top: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+  }
+  .cfieldrow > :nth-child(1) { grid-area: name; }
+  .cfieldrow > :nth-child(2) { grid-area: value; }
+  .cfieldrow > :nth-child(3) { grid-area: token; align-self: center; }
+  .cfieldrow > :nth-child(4) { grid-area: remove; justify-self: end; }
 }
+
+/* Portal headline: 40px reads well on a laptop, but eats four lines on a
+   phone before a sub sees a single bid. */
+.portal-headline { font-size: 40px; }
+@media (max-width: 640px) {
+  .portal-headline { font-size: 26px; }
+}
+
+/* A wide matrix (compare) is useless on a phone if the row labels scroll
+   away with the values — you end up guessing which row you're reading.
+   Pin the first column so the label stays put. */
+.table-pinned th:first-child,
+.table-pinned td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--color-bg);
+  box-shadow: 1px 0 0 var(--color-divider);
+}
+
+/* Horizontal strips (tabs, nav, filter chips) scroll without a visible
+   scrollbar eating a row of height on a phone. */
+.tabstrip, .tablewrap {
+  scrollbar-width: thin;
+}
+.tabstrip {
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.tabstrip::-webkit-scrollbar { display: none; }

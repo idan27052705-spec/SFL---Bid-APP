@@ -142,7 +142,13 @@ export default function CompareClient({
 
       <Blueprint style={{ padding: "12px 18px 6px" }}>
         <div className="tablewrap">
-          <table className="table" style={{ minWidth: 720 }}>
+          {/* Width follows the number of subs rather than a fixed 720px, so
+              on a phone you see the pinned label plus a full column instead
+              of two half-columns. */}
+          <table
+            className="table table-pinned"
+            style={{ minWidth: Math.max(420, 150 + quotes.length * 185) }}
+          >
             <thead>
               <tr>
                 <th>Line</th>

@@ -515,6 +515,7 @@ export function TemplatesEditor({
         </div>
 
         <div
+          className="cfieldhead"
           style={{
             display: "grid",
             gridTemplateColumns: "170px minmax(0,1fr) 140px 40px",
@@ -540,6 +541,7 @@ export function TemplatesEditor({
         {fields.map((c, n) => (
           <div
             key={n}
+            className="cfieldrow"
             style={{
               display: "grid",
               gridTemplateColumns: "170px minmax(0,1fr) 140px 40px",

@@ -27,7 +27,7 @@ export default function Tabs({
   };
 
   return (
-    <div style={{ marginTop: 14, display: "flex", overflowX: "auto" }}>
+    <div className="tabstrip" style={{ marginTop: 14, display: "flex" }}>
       {tabs.map(([key, label]) => (
         <button
           key={key}

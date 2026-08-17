@@ -291,6 +291,7 @@ export default function BidBuilder({
             </div>
 
             <div
+              className="pricelinehead"
               style={{
                 display: "grid",
                 gridTemplateColumns: GRID,
@@ -312,7 +313,7 @@ export default function BidBuilder({
 
             {items.map((i, n) => (
               <div key={i.key} style={{ padding: "10px 0", borderTop: HAIR }}>
-                <div style={{ display: "grid", gridTemplateColumns: GRID, gap: 8, alignItems: "center" }}>
+                <div className="priceline" style={{ display: "grid", gridTemplateColumns: GRID, gap: 8, alignItems: "center" }}>
                   <div style={{ fontSize: 13, color: "color-mix(in srgb, var(--color-text) 45%, transparent)" }}>
                     {n + 1}
                   </div>
@@ -344,7 +345,7 @@ export default function BidBuilder({
                     <X size={15} />
                   </button>
                 </div>
-                <div style={{ paddingLeft: 34, marginTop: 6 }}>
+                <div className="pricelinedetail" style={{ paddingLeft: 34, marginTop: 6 }}>
                   <textarea
                     className="input"
                     style={{ minHeight: 74 }}

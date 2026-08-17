@@ -100,7 +100,7 @@ export default async function PortalBidsPage() {
             <div style={{ fontSize: 11, letterSpacing: ".16em", textTransform: "uppercase", color: "var(--color-accent-700)" }}>
               {sub.company_name}
             </div>
-            <h1 style={{ fontSize: 40, margin: "2px 0 0" }}>{headline}</h1>
+            <h1 className="portal-headline" style={{ margin: "2px 0 0" }}>{headline}</h1>
           </div>
           <div style={{ display: "flex", gap: 26 }}>
             {[
@@ -176,6 +176,7 @@ export default async function PortalBidsPage() {
           <div>
             <h4 style={{ margin: "0 0 10px" }}>{t.submitted}</h4>
             <div className="blueprint" style={{ padding: "6px 18px" }}>
+              <div className="tablewrap">
               <table className="table">
                 <tbody>
                   {submitted.map((r) => (
@@ -199,6 +200,7 @@ export default async function PortalBidsPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
         )}
@@ -207,6 +209,7 @@ export default async function PortalBidsPage() {
           <div>
             <h4 style={{ margin: "0 0 10px" }}>{t.past}</h4>
             <div className="blueprint" style={{ padding: "6px 18px" }}>
+              <div className="tablewrap">
               <table className="table">
                 <tbody>
                   {past.map((r) => {
@@ -237,6 +240,7 @@ export default async function PortalBidsPage() {
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
         )}
