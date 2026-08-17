@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { STR, pickLang } from "@/lib/portalStrings";
 import { money, fileKind } from "@/lib/format";
 import { wrongOrigin } from "@/lib/guard";
+import { advanceProjectStage } from "@/lib/stage";
 
 /**
  * POST /api/portal/bids/:shortId/response — the sub sends their price.
@@ -118,6 +119,8 @@ export async function POST(
   // First price in flips the package so the office knows to look.
   if (bid.status === "Out for Bid")
     await admin.from("bids").update({ status: "Responses In" }).eq("id", bid.id);
+
+  await advanceProjectStage(admin, bid.project_id, "Review");
 
   const trade = bid.trades as unknown as { name: string } | null;
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireApiUser, forbidden, badRequest, notFound } from "@/lib/api";
 import { REMINDER_CADENCES } from "@/app/config";
+import { advanceProjectStage } from "@/lib/stage";
 import { wrongOrigin } from "@/lib/guard";
 
 /**
@@ -158,6 +159,8 @@ export async function POST(request: Request) {
     }));
     if (links.length) await supabase.from("bid_files").insert(links);
   }
+
+  if (created) await advanceProjectStage(supabase, projectId, "Building bids");
 
   await supabase.from("activity").insert({
     company_id: user.companyId,

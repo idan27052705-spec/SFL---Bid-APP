@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import NewProjectModal from "./NewProjectModal";
+import ProjectModal from "./ProjectModal";
+import { PROJECT_STAGES } from "@/app/config";
 import { formatDate } from "@/lib/format";
 
 export type ProjectRow = {
@@ -18,7 +19,8 @@ export type ProjectRow = {
   bidCount: number;
 };
 
-const STATUSES = ["All", "Bidding", "Awarded", "Draft", "Closed"];
+/** "All" deliberately excludes Archived — you have to ask for those. */
+const FILTERS = ["All", ...PROJECT_STAGES];
 
 export default function ProjectsClient({
   projects,
@@ -34,7 +36,7 @@ export default function ProjectsClient({
   const rows = useMemo(() => {
     const s = search.trim().toLowerCase();
     return projects.filter((p) => {
-      if (status !== "All" && p.status !== status) return false;
+      if (status === "All" ? p.status === "Archived" : p.status !== status) return false;
       if (!s) return true;
       return [p.name, p.client, p.city, p.type]
         .filter(Boolean)
@@ -51,7 +53,8 @@ export default function ProjectsClient({
           <div style={{ flex: 1, minWidth: 200 }}>
             <h6 className="text-muted">Projects</h6>
             <h1 style={{ marginBottom: 0 }}>
-              {projects.length} project{projects.length === 1 ? "" : "s"}
+              {projects.filter((p) => p.status !== "Archived").length} project
+              {projects.filter((p) => p.status !== "Archived").length === 1 ? "" : "s"}
             </h1>
           </div>
           {canWrite && (
@@ -80,7 +83,7 @@ export default function ProjectsClient({
             onChange={(e) => setSearch(e.target.value)}
           />
           <div className="seg" style={{ display: "inline-flex" }}>
-            {STATUSES.map((s) => (
+            {FILTERS.map((s) => (
               <button
                 key={s}
                 className="btn"
@@ -88,7 +91,7 @@ export default function ProjectsClient({
                 style={{
                   border: 0,
                   borderLeft:
-                    s === STATUSES[0] ? 0 : "1px solid var(--color-divider)",
+                    s === FILTERS[0] ? 0 : "1px solid var(--color-divider)",
                   background:
                     status === s
                       ? "color-mix(in srgb, var(--color-accent) 16%, transparent)"
@@ -170,7 +173,7 @@ export default function ProjectsClient({
         )}
       </div>
 
-      {modal && <NewProjectModal onClose={() => setModal(false)} />}
+      {modal && <ProjectModal mode="new" onClose={() => setModal(false)} />}
     </>
   );
 }

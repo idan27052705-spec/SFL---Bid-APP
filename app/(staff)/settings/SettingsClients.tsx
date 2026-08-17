@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, X } from "lucide-react";
 import Modal, { ModalField } from "@/components/Modal";
+import NotConnected from "@/components/NotConnected";
 import { REMINDER_CADENCES } from "@/app/config";
 
 const MUTED = "color-mix(in srgb, var(--color-text) 55%, transparent)";
@@ -462,7 +463,10 @@ export function TemplatesEditor({
         </div>
 
         <div className="blueprint" style={{ padding: 18, display: "flex", flexDirection: "column" }}>
-          <h4 style={{ margin: "0 0 10px" }}>SMS</h4>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+            <h4 style={{ margin: 0 }}>SMS</h4>
+            <NotConnected />
+          </div>
           <div className="field">
             <label htmlFor="sms">Message</label>
             <textarea
@@ -476,8 +480,7 @@ export function TemplatesEditor({
           </div>
           <div style={{ fontSize: 11, marginTop: 8, color: FAINT }}>
             {sms.length} characters · {segments} segment{segments === 1 ? "" : "s"} ·
-            text messaging isn&apos;t connected yet, so this is stored ready for
-            when it is
+            saved and ready — nothing is sent by text until Twilio is switched on
           </div>
 
           {error && <div style={{ fontSize: 13, color: "#b3261e", marginTop: 8 }}>{error}</div>}

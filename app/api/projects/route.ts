@@ -34,7 +34,7 @@ export async function POST(request: Request) {
       type: String(body.type ?? "").trim() || null,
       start_date: body.startDate || null,
       description: String(body.description ?? "").trim() || null,
-      status: "Bidding",
+      status: "New",
       created_by: user.id,
     })
     .select("id, short_id, name")

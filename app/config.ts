@@ -54,6 +54,32 @@ export const DEFAULT_TRADES = [
   "Demolition",
 ] as const;
 
+/**
+ * Project stages, in order. A project only ever moves forward on its own
+ * (creating a bid, sending invitations, a price arriving) — it never moves
+ * itself back, and it never touches Closed or Archived. Those two are
+ * always a deliberate choice.
+ */
+export const PROJECT_STAGES = [
+  "New",
+  "Building bids",
+  "Sent bids",
+  "Review",
+  "Closed",
+  "Archived",
+] as const;
+
+export type ProjectStage = (typeof PROJECT_STAGES)[number];
+
+/** Stages that mean "no longer being worked on". */
+export const CLOSED_STAGES: readonly string[] = ["Closed", "Archived"];
+
+/** How far along a stage is, for the "only move forward" rule. */
+export const stageOrder = (stage: string) => {
+  const i = (PROJECT_STAGES as readonly string[]).indexOf(stage);
+  return i === -1 ? 0 : i;
+};
+
 export const BID_STATUSES = [
   "Draft",
   "Out for Bid",

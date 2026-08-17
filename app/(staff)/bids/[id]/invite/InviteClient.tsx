@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Blueprint from "@/components/Blueprint";
 import Modal from "@/components/Modal";
+import NotConnected from "@/components/NotConnected";
 
 const MUTED = "color-mix(in srgb, var(--color-text) 55%, transparent)";
 const FAINT = "color-mix(in srgb, var(--color-text) 50%, transparent)";
@@ -157,13 +158,15 @@ export default function InviteClient({
           </Blueprint>
 
           <Blueprint style={{ padding: "16px 18px" }}>
-            <h4 style={{ margin: "0 0 10px" }}>SMS preview</h4>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+              <h4 style={{ margin: 0 }}>SMS preview</h4>
+              <NotConnected />
+            </div>
             <div style={{ fontSize: 13, whiteSpace: "pre-line" }}>{preview.sms}</div>
             <div style={{ fontSize: 11, marginTop: 8, color: FAINT }}>
               {preview.sms.length} characters ·{" "}
               {Math.max(1, Math.ceil(preview.sms.length / 160))} segment
-              {preview.sms.length > 160 ? "s" : ""} · text messaging isn&apos;t
-              connected yet, so only the email goes out
+              {preview.sms.length > 160 ? "s" : ""} · only the email goes out
             </div>
           </Blueprint>
 

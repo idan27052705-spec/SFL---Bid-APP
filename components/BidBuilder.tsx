@@ -7,7 +7,7 @@ import { X, Plus, FilePlus, Image as ImageIcon, Video, FileText } from "lucide-r
 import { REMINDER_CADENCES } from "@/app/config";
 import { formatDate } from "@/lib/format";
 import Blueprint from "@/components/Blueprint";
-import MediaGallery from "@/components/MediaGallery";
+import FileCollection from "@/components/FileCollection";
 
 const MUTED = "color-mix(in srgb, var(--color-text) 55%, transparent)";
 const FAINT = "color-mix(in srgb, var(--color-text) 50%, transparent)";
@@ -402,8 +402,11 @@ export default function BidBuilder({
               from a phone.
             </div>
 
-            <MediaGallery
+            <FileCollection
               files={attachedMedia}
+              defaultView="grid"
+              storageKey="builder-media"
+              zipName="Photos and video"
               onRemove={detach}
               empty="No photos or video yet. Add some and they appear here as thumbnails."
             />

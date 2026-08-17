@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Plus, UserPlus } from "lucide-react";
-import NewProjectModal from "./projects/NewProjectModal";
+import ProjectModal from "./projects/ProjectModal";
 import NewSubModal, { type Trade } from "./subs/NewSubModal";
 
 /** The two header buttons on the dashboard, each opening its modal. */
@@ -22,7 +22,7 @@ export default function DashboardActions({ trades }: { trades: Trade[] }) {
         <i className="corner br" />
       </button>
 
-      {open === "project" && <NewProjectModal onClose={() => setOpen(null)} />}
+      {open === "project" && <ProjectModal mode="new" onClose={() => setOpen(null)} />}
       {open === "sub" && <NewSubModal trades={trades} onClose={() => setOpen(null)} />}
     </>
   );

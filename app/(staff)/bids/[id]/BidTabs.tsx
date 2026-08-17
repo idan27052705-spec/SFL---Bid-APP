@@ -4,7 +4,6 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  FileText,
   Image as ImageIcon,
   Video,
   FilePlus,
@@ -13,14 +12,11 @@ import {
 } from "lucide-react";
 import { REMINDER_CADENCES } from "@/app/config";
 import { money, timeAgo } from "@/lib/format";
-import FileViewer from "@/components/FileViewer";
 import CommentsModal, { type Comment } from "@/components/CommentsModal";
-import MediaGallery from "@/components/MediaGallery";
+import FileCollection from "@/components/FileCollection";
 
 const MUTED = "color-mix(in srgb, var(--color-text) 55%, transparent)";
 const FAINT = "color-mix(in srgb, var(--color-text) 50%, transparent)";
-const HAIR = "1px solid color-mix(in srgb, var(--color-text) 8%, transparent)";
-const ICON = { doc: FileText, photo: ImageIcon, video: Video } as const;
 
 export type BidFile = { id: string; name: string; kind: string; size_bytes?: number | null };
 
@@ -38,8 +34,6 @@ export function BidFilesPanel({
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [viewing, setViewing] = useState<number | null>(null);
-
   const docs = files.filter((f) => f.kind === "doc");
 
   /** accept set on the node, not via state — see BidBuilder for why. */
@@ -79,29 +73,13 @@ export function BidFilesPanel({
     <>
       <h4 style={{ margin: "0 0 10px" }}>Drawings &amp; specs</h4>
 
-      {docs.length === 0 && (
-        <p style={{ fontSize: 13, color: MUTED, margin: 0 }}>
-          No drawings attached yet. Subs see whatever you put here.
-        </p>
-      )}
-
-      {docs.map((f) => {
-        const Icon = ICON[f.kind as keyof typeof ICON] ?? FileText;
-        return (
-          <div
-            key={f.id}
-            style={{ display: "flex", gap: 10, alignItems: "center", padding: "9px 0", borderTop: HAIR }}
-          >
-            <Icon size={16} style={{ opacity: 0.6, flex: "none" }} />
-            <div style={{ flex: 1, minWidth: 0, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis" }}>
-              {f.name}
-            </div>
-            <button className="btn btn-ghost" onClick={() => setViewing(docs.indexOf(f))}>
-              Open
-            </button>
-          </div>
-        );
-      })}
+      <FileCollection
+        files={docs}
+        defaultView="list"
+        storageKey="bid-docs"
+        zipName="Drawings and specs"
+        empty="No drawings attached yet. Subs see whatever you put here."
+      />
 
       {error && <div style={{ fontSize: 12, color: "#b3261e", marginTop: 8 }}>{error}</div>}
 
@@ -124,9 +102,6 @@ export function BidFilesPanel({
         </>
       )}
 
-      {viewing !== null && (
-        <FileViewer files={docs} index={viewing} onClose={() => setViewing(null)} />
-      )}
     </>
   );
 }
@@ -201,7 +176,13 @@ export function BidMediaPanel({
         onChange={(e) => upload(e.target.files)}
       />
 
-      <MediaGallery files={media} empty="No photos or video on this package." />
+      <FileCollection
+        files={media}
+        defaultView="grid"
+        storageKey="bid-media"
+        zipName="Photos and video"
+        empty="No photos or video on this package."
+      />
 
       {busy && <div style={{ fontSize: 12, color: MUTED, marginTop: 10 }}>Uploading…</div>}
       {error && <div style={{ fontSize: 12, color: "#b3261e", marginTop: 10 }}>{error}</div>}

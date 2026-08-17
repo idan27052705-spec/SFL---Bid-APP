@@ -6,6 +6,7 @@ import { makePortalToken } from "@/lib/portalToken";
 import { issueAccessCode, revealCode } from "@/lib/accessCode";
 import { formatDate } from "@/lib/format";
 import { COMPANY } from "@/app/config";
+import { advanceProjectStage } from "@/lib/stage";
 import { wrongOrigin } from "@/lib/guard";
 
 /**
@@ -164,8 +165,11 @@ export async function POST(
   }
 
   // The package is live the moment the first invitation goes out.
-  if (sent.length > 0 && bid.status === "Draft") {
-    await supabase.from("bids").update({ status: "Out for Bid" }).eq("id", bid.id);
+  if (sent.length > 0) {
+    if (bid.status === "Draft") {
+      await supabase.from("bids").update({ status: "Out for Bid" }).eq("id", bid.id);
+    }
+    await advanceProjectStage(supabase, bid.project_id, "Sent bids");
   }
 
   return NextResponse.json({ ok: true, sent, failed, issuedCodes });

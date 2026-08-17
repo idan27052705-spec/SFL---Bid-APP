@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateShort, money, timeAgo } from "@/lib/format";
 import Blueprint from "@/components/Blueprint";
 import Tabs from "@/components/Tabs";
+import ProjectActions from "./ProjectActions";
 import ProjectFiles, { type FileRow } from "./ProjectFiles";
 
 export const dynamic = "force-dynamic";
@@ -189,10 +190,28 @@ export default async function ProjectDetailPage({
                 .join(" · ")}
             </div>
           </div>
-          <span className="tag tag-accent" style={{ marginBottom: 6 }}>
-            {project.status}
-          </span>
-          {canWrite(user) && (
+          {canWrite(user) ? (
+            <ProjectActions
+              shortId={project.short_id}
+              name={project.name}
+              status={project.status}
+              fields={{
+                name: project.name ?? "",
+                client: project.client ?? "",
+                address: project.address ?? "",
+                city: project.city ?? "",
+                county: project.county ?? "Broward",
+                type: project.type ?? "",
+                startDate: project.start_date ?? "",
+                description: project.description ?? "",
+              }}
+            />
+          ) : (
+            <span className="tag tag-accent" style={{ marginBottom: 6 }}>
+              {project.status}
+            </span>
+          )}
+          {canWrite(user) && project.status !== "Archived" && (
             <Link
               className="btn btn-primary blueprint"
               href={`/projects/${project.short_id}/bids/new`}
