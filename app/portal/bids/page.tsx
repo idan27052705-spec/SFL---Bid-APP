@@ -88,7 +88,7 @@ export default async function PortalBidsPage() {
   const shell = { name: company.name, footer: companyFooter(company), phone: company.phone };
 
   return (
-    <PortalShell company={shell} lang={lang} subName={sub.company_name}>
+    <PortalShell company={shell} preview={sub.isPreview} lang={lang} subName={sub.company_name}>
       <>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 20, flexWrap: "wrap" }}>
           <div style={{ marginRight: "auto", minWidth: 0 }}>

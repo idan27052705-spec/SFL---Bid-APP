@@ -38,7 +38,7 @@ export async function POST(
 
   if (!sub) return notFound("Sub not found.");
 
-  setPortalSession(sub.id, sub.session_epoch ?? 1);
+  setPortalSession(sub.id, sub.session_epoch ?? 1, { preview: true });
 
   await supabase.from("activity").insert({
     company_id: user.companyId,

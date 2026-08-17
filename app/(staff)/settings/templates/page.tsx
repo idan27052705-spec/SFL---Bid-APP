@@ -32,7 +32,7 @@ const BUILT_IN: [string, string, string][] = [
   ["{trade}", "The trade on this package", "Plumbing"],
   ["{bid_title}", "Package title", "Floors 4–18 rough-in"],
   ["{due_date}", "When pricing is due", "Aug 21, 2026"],
-  ["{portal_url}", "Their one-tap link", "bids.sflbuildersgroup.com/portal/…"],
+  ["{portal_url}", "Link to the bid — they still enter their code", "bids.sflbuildersgroup.com/portal/…"],
   ["{access_code}", "Their 6-digit code", "244670"],
   ["{price}", "Awarded price (award only)", "$184,500"],
 ];

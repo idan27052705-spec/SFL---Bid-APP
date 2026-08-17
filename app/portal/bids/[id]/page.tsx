@@ -49,7 +49,7 @@ export default async function PortalBidPage({
    * stamped when the emailed link was clicked, which could happen from a
    * preview pane without anyone reading anything.
    */
-  if (!invitation.viewed_at) {
+  if (!invitation.viewed_at && !sub.isPreview) {
     await admin
       .from("invitations")
       .update({
@@ -112,7 +112,7 @@ export default async function PortalBidPage({
   const shell = { name: company.name, footer: companyFooter(company), phone: company.phone };
 
   return (
-    <PortalShell company={shell} lang={lang} subName={sub.company_name}>
+    <PortalShell company={shell} preview={sub.isPreview} lang={lang} subName={sub.company_name}>
       <Link href="/portal/bids" className="btn btn-ghost" style={{ padding: 0, marginBottom: 12 }}>
         ← {t.back}
       </Link>

@@ -17,6 +17,7 @@ export default function PortalShell({
   lang,
   subName,
   company,
+  preview = false,
   narrow = false,
   children,
 }: {
@@ -24,6 +25,8 @@ export default function PortalShell({
   subName?: string;
   /** The GC's own details, as saved in Settings > Company details. */
   company: PortalCompany;
+  /** Staff looking through a sub's eyes — say so, loudly. */
+  preview?: boolean;
   /** Reading-width column — used by the sign-in and My info pages. */
   narrow?: boolean;
   children: React.ReactNode;
@@ -140,6 +143,21 @@ export default function PortalShell({
           </div>
         </div>
       </header>
+
+      {preview && (
+        <div
+          style={{
+            background: "var(--color-accent-700)",
+            color: "#fff",
+            textAlign: "center",
+            padding: "7px 16px",
+            fontSize: 13,
+          }}
+        >
+          Staff preview — this is what {subName} sees. Nothing you do here is
+          saved.
+        </div>
+      )}
 
       <main style={{ flex: 1 }}>
         <div className={`pwrap${narrow ? " pwrap--narrow pwrap--tight" : ""}`}>

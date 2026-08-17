@@ -24,6 +24,14 @@ export async function POST(request: Request) {
   const sub = await getPortalSub();
   if (!sub) return NextResponse.json({ error: "Signed out." }, { status: 401 });
 
+  // A staff "Preview as sub" session is strictly look-only — the office
+  // must not be able to price a job on a sub's behalf by accident.
+  if (sub.isPreview)
+    return NextResponse.json(
+      { error: "This is a preview. Nothing you do here is saved." },
+      { status: 403 }
+    );
+
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Bad request." }, { status: 400 });
 

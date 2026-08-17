@@ -37,7 +37,7 @@ export default async function PortalProfilePage() {
   const shell = { name: company.name, footer: companyFooter(company), phone: company.phone };
 
   return (
-    <PortalShell company={shell} lang={lang} subName={sub.company_name} narrow>
+    <PortalShell company={shell} preview={sub.isPreview} lang={lang} subName={sub.company_name} narrow>
       <>
         <h1 className="ptitle">{t.myInfo}</h1>
 

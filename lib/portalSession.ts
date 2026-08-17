@@ -26,8 +26,18 @@ const secret = () => {
 const sign = (value: string) =>
   createHmac("sha256", secret()).update(value).digest("base64url");
 
-export function setPortalSession(subId: string, epoch: number) {
-  const value = `${subId}:${epoch}`;
+/**
+ * `preview` marks a staff "Preview as sub" session. It looks like a real
+ * session to the sub-facing code, but it must never leave a footprint:
+ * no "opened the bid", no prices, no change requests. Without the mark
+ * the office looking at a bid would show up as the sub having opened it.
+ */
+export function setPortalSession(
+  subId: string,
+  epoch: number,
+  options?: { preview?: boolean }
+) {
+  const value = options?.preview ? `${subId}:${epoch}:p` : `${subId}:${epoch}`;
   cookies().set(COOKIE, `${value}.${sign(value)}`, {
     httpOnly: true,
     sameSite: "lax",
@@ -56,8 +66,9 @@ export async function getPortalSub() {
   const b = Buffer.from(sign(value));
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
 
-  const [subId, epochText] = value.split(":");
+  const [subId, epochText, mark] = value.split(":");
   if (!subId) return null;
+  const isPreview = mark === "p";
 
   const admin = createAdminClient();
   const { data: sub } = await admin
@@ -71,5 +82,5 @@ export async function getPortalSub() {
   // Code regenerated since they signed in → session is dead.
   if (String(sub.session_epoch ?? 1) !== epochText) return null;
 
-  return sub;
+  return { ...sub, isPreview };
 }
