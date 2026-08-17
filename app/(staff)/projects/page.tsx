@@ -10,7 +10,9 @@ export default async function ProjectsPage() {
 
   const { data: projects } = await supabase
     .from("projects")
-    .select("id, short_id, name, client, city, county, type, status, start_date")
+    .select(
+      "id, short_id, name, client, address, city, county, type, status, start_date, description"
+    )
     .order("created_at", { ascending: false });
 
   const { data: bids } = await supabase.from("bids").select("project_id");

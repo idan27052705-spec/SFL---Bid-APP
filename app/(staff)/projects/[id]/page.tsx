@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
+import { Fragment, Suspense } from "react";
 import { Plus } from "lucide-react";
 import { requireUser, canWrite } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -9,6 +9,7 @@ import Blueprint from "@/components/Blueprint";
 import Tabs from "@/components/Tabs";
 import ProjectActions from "./ProjectActions";
 import ProjectFiles, { type FileRow } from "./ProjectFiles";
+import CostBreakdown from "./CostBreakdown";
 
 export const dynamic = "force-dynamic";
 
@@ -31,19 +32,6 @@ const label: React.CSSProperties = {
   color: FAINT,
 };
 
-const cell: React.CSSProperties = {
-  padding: "8px 10px",
-  border: "1px solid var(--color-divider)",
-};
-const headCell: React.CSSProperties = {
-  ...cell,
-  textAlign: "left",
-  fontSize: 10,
-  letterSpacing: ".1em",
-  textTransform: "uppercase",
-  fontWeight: 600,
-};
-const numCell: React.CSSProperties = { ...cell, textAlign: "right" };
 
 export default async function ProjectDetailPage({
   params,
@@ -142,6 +130,24 @@ export default async function ProjectDetailPage({
         const who = invites.find((i) => priceOf(i) === min);
         return who?.subs?.company_name ?? null;
       })(),
+
+      // Every sub on this package, so the cost breakdown can show who
+      // is behind each number instead of one blended figure per trade.
+      quotes: invites
+        .map((i) => ({
+          id: i.id,
+          company: i.subs?.company_name ?? "—",
+          price: priceOf(i),
+          declined: i.status === "Denied",
+          awarded: b.awarded_sub_id != null && i.sub_id === b.awarded_sub_id,
+        }))
+        .sort((x, y) => {
+          // Priced first, cheapest at the top; everyone else underneath.
+          if (x.price == null && y.price == null) return 0;
+          if (x.price == null) return 1;
+          if (y.price == null) return -1;
+          return x.price - y.price;
+        }),
     };
   });
 
@@ -410,115 +416,25 @@ export default async function ProjectDetailPage({
             </div>
 
             <Blueprint style={{ padding: "14px 18px 18px" }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "baseline",
-                  gap: 12,
-                  padding: "0 0 12px",
-                  flexWrap: "wrap",
-                }}
-              >
-                <h4 style={{ margin: 0 }}>Cost breakdown</h4>
-                <span style={{ fontSize: 12, color: MUTED }}>
-                  {withPrices.length} of {bids.length} trades priced ·{" "}
-                  {bids.length - withPrices.length} still waiting
-                </span>
-              </div>
-
-              <div className="tablewrap" style={{ border: "1px solid var(--color-divider)" }}>
-                <table style={{ width: "100%", minWidth: 940, borderCollapse: "collapse", fontSize: 13 }}>
-                  <thead>
-                    <tr style={{ background: "var(--color-neutral-200)" }}>
-                      <th style={headCell}>Trade / subcontractor</th>
-                      <th style={{ ...headCell, width: 110 }}>Status</th>
-                      <th style={{ ...headCell, textAlign: "right", width: 120 }}>Price</th>
-                      <th style={{ ...headCell, textAlign: "right", width: 120 }}>Low</th>
-                      <th style={{ ...headCell, textAlign: "right", width: 120 }}>Average</th>
-                      <th style={{ ...headCell, textAlign: "right", width: 120 }}>High</th>
-                      <th style={{ ...headCell, textAlign: "right", width: 120 }}>Spread</th>
-                      <th style={{ ...headCell, textAlign: "right", width: 130 }}>Carried</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bids.length === 0 ? (
-                      <tr>
-                        <td style={cell} colSpan={8}>
-                          Nothing priced yet.
-                        </td>
-                      </tr>
-                    ) : (
-                      bids.map((b) => {
-                        const carried = b.awardedPrice ?? b.low;
-                        const who = b.awardedCompany ?? b.lowCompany;
-                        return (
-                          <tr key={b.id}>
-                            <td style={cell}>
-                              <Link className="rowlink" href={`/bids/${b.shortId}`} style={{ fontWeight: 500 }}>
-                                {b.trade}
-                              </Link>
-                              {who && (
-                                <div style={{ fontSize: 11, color: MUTED }}>
-                                  {b.awardedCompany ? `awarded — ${who}` : `low — ${who}`}
-                                </div>
-                              )}
-                            </td>
-                            <td style={cell}>
-                              <span
-                                className={
-                                  b.status === "Awarded" ? "tag tag-accent" : "tag tag-neutral"
-                                }
-                              >
-                                {b.status}
-                              </span>
-                            </td>
-                            <td className="tabular" style={numCell}>
-                              {b.awardedPrice != null ? money(b.awardedPrice) : "—"}
-                            </td>
-                            <td className="tabular" style={numCell}>
-                              {b.low != null ? money(b.low) : "—"}
-                            </td>
-                            <td className="tabular" style={numCell}>
-                              {b.avg != null ? money(b.avg) : "—"}
-                            </td>
-                            <td className="tabular" style={numCell}>
-                              {b.high != null ? money(b.high) : "—"}
-                            </td>
-                            <td className="tabular" style={numCell}>
-                              {b.low != null && b.high != null ? money(b.high - b.low) : "—"}
-                            </td>
-                            <td className="tabular" style={{ ...numCell, fontWeight: 600 }}>
-                              {carried != null ? money(carried) : "—"}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                  <tfoot>
-                    <tr style={{ background: "var(--color-neutral-200)" }}>
-                      <td style={{ ...cell, fontWeight: 600 }} colSpan={3}>
-                        Project total
-                      </td>
-                      <td className="tabular" style={{ ...numCell, fontWeight: 600 }}>
-                        {money(costTotals.low)}
-                      </td>
-                      <td className="tabular" style={{ ...numCell, fontWeight: 600 }}>
-                        {money(costTotals.avg)}
-                      </td>
-                      <td className="tabular" style={{ ...numCell, fontWeight: 600 }}>
-                        {money(costTotals.high)}
-                      </td>
-                      <td className="tabular" style={{ ...numCell, fontWeight: 600 }}>
-                        {money(spread)}
-                      </td>
-                      <td className="tabular" style={{ ...numCell, fontWeight: 600 }}>
-                        {money(costTotals.carried)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
+              <CostBreakdown
+                projectName={project.name}
+                trades={bids.map((b) => ({
+                  id: b.id,
+                  shortId: b.shortId,
+                  trade: b.trade,
+                  status: b.status,
+                  invited: b.invited,
+                  received: b.received,
+                  low: b.low,
+                  avg: b.avg,
+                  high: b.high,
+                  awardedPrice: b.awardedPrice,
+                  awardedCompany: b.awardedCompany,
+                  lowCompany: b.lowCompany,
+                  quotes: b.quotes,
+                }))}
+                totals={costTotals}
+              />
             </Blueprint>
           </div>
         )}
