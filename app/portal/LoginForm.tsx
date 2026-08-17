@@ -8,14 +8,16 @@ import { COMPANY } from "@/app/config";
 export default function LoginForm({
   lang,
   expired,
+  email: prefill,
 }: {
   lang: Lang;
   expired: boolean;
+  email?: string;
 }) {
   const router = useRouter();
   const t = STR[lang];
 
-  const [identifier, setIdentifier] = useState("");
+  const [identifier, setIdentifier] = useState(prefill ?? "");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -38,7 +40,7 @@ export default function LoginForm({
       return;
     }
 
-    router.push("/portal/bids");
+    router.push(data.redirect || "/portal/bids");
     router.refresh();
   }
 

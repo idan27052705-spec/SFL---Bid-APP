@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { STR, type Lang } from "@/lib/portalStrings";
 import { money } from "@/lib/format";
-import FileViewer from "@/components/FileViewer";
+import FileCollection from "@/components/FileCollection";
 import { createClient } from "@/lib/supabase/client";
 
 type Existing = {
@@ -20,14 +20,16 @@ export default function BidActions({
   existing,
   declinedReason,
   closed,
-  files,
+  docs,
+  media,
 }: {
   shortId: number;
   lang: Lang;
   existing: Existing;
   declinedReason: string | null;
   closed: boolean;
-  files: { id: string; name: string }[];
+  docs: { id: string; name: string; kind: string; size_bytes: number | null }[];
+  media: { id: string; name: string; kind: string; size_bytes: number | null }[];
 }) {
   const router = useRouter();
   const t = STR[lang];
@@ -43,7 +45,6 @@ export default function BidActions({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<string | null>(null);
-  const [viewing, setViewing] = useState<number | null>(null);
 
   async function sendQuote() {
     setError(null);
@@ -150,32 +151,29 @@ export default function BidActions({
 
   return (
     <div style={{ display: "grid", gap: 18 }}>
-      {files.length > 0 && (
+      {docs.length > 0 && (
         <section>
           <h5>{t.files}</h5>
-          <div style={{ display: "grid", gap: 8 }}>
-            {files.map((f) => (
-              <button
-                key={f.id}
-                className="btn btn-secondary"
-                style={{ ...big, justifyContent: "space-between" }}
-                onClick={() => setViewing(files.indexOf(f))}
-              >
-                <span
-                  style={{
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {f.name}
-                </span>
-                <span className="text-muted" style={{ fontSize: 13 }}>
-                  {t.download}
-                </span>
-              </button>
-            ))}
-          </div>
+          <FileCollection
+            files={docs}
+            portal
+            defaultView="list"
+            showToolbar={false}
+          />
+        </section>
+      )}
+
+      {media.length > 0 && (
+        <section>
+          <h5>{t.photos}</h5>
+          <FileCollection
+            files={media}
+            portal
+            defaultView="grid"
+            square
+            columns={4}
+            showToolbar={false}
+          />
         </section>
       )}
 
@@ -330,15 +328,6 @@ export default function BidActions({
             {t.cancel}
           </button>
         </div>
-      )}
-
-      {viewing !== null && (
-        <FileViewer
-          files={files.map((f) => ({ ...f, kind: "doc" }))}
-          index={viewing}
-          onClose={() => setViewing(null)}
-          portal
-        />
       )}
 
       {mode === "decline" && (

@@ -14,16 +14,42 @@ const EMPTY = {
   city: "",
 };
 
-export default function NewSubModal({
+/** The sub being edited. Absent means we're adding a new one. */
+export type EditableSub = {
+  shortId: number;
+  companyName: string;
+  contactName: string | null;
+  email: string | null;
+  phone: string | null;
+  city: string | null;
+  status: string;
+  tradeIds: string[];
+};
+
+export default function SubModal({
   trades,
+  sub,
   onClose,
 }: {
   trades: Trade[];
+  sub?: EditableSub;
   onClose: () => void;
 }) {
   const router = useRouter();
-  const [form, setForm] = useState({ ...EMPTY });
-  const [tradeIds, setTradeIds] = useState<string[]>([]);
+  const editing = !!sub;
+  const [form, setForm] = useState(
+    sub
+      ? {
+          companyName: sub.companyName,
+          contactName: sub.contactName ?? "",
+          email: sub.email ?? "",
+          phone: sub.phone ?? "",
+          city: sub.city ?? "",
+        }
+      : { ...EMPTY }
+  );
+  const [status, setStatus] = useState(sub?.status ?? "Active");
+  const [tradeIds, setTradeIds] = useState<string[]>(sub?.tradeIds ?? []);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [issued, setIssued] = useState<{ code: string; name: string } | null>(null);
@@ -61,10 +87,10 @@ export default function NewSubModal({
     }
 
     setBusy(true);
-    const res = await fetch("/api/subs", {
-      method: "POST",
+    const res = await fetch(sub ? `/api/subs/${sub.shortId}` : "/api/subs", {
+      method: sub ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, tradeIds }),
+      body: JSON.stringify({ ...form, tradeIds, ...(sub ? { status } : {}) }),
     });
     const data = await res.json();
     setBusy(false);
@@ -74,8 +100,14 @@ export default function NewSubModal({
       return;
     }
 
-    setIssued({ code: data.code, name: data.sub.company_name });
     router.refresh();
+
+    // Editing just closes. Adding shows the new access code once.
+    if (sub) {
+      onClose();
+      return;
+    }
+    setIssued({ code: data.code, name: data.sub.company_name });
   }
 
   // After saving, the code is shown once — it can never be read back.
@@ -104,13 +136,9 @@ export default function NewSubModal({
           {issued.code}
         </div>
         <p style={{ fontSize: 13, margin: 0 }}>
-          <strong>Write this down or text it now.</strong> It&apos;s stored
-          scrambled, so nobody — not even you — can read it back later. If it
-          gets lost, issue a new one from the sub&apos;s page.
-        </p>
-        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-          Once email sending is switched on, the code goes out automatically with
-          every bid invitation.
+          <strong>This is their password for the portal.</strong> It goes out
+          with every bid invitation email, and you can always look it up again
+          on the sub&apos;s page.
         </p>
         <button
           className="btn btn-secondary"
@@ -124,8 +152,12 @@ export default function NewSubModal({
 
   return (
     <Modal
-      title="Add subcontractor"
-      subtitle="They get an access code for the sub portal — no password to remember."
+      title={editing ? "Edit subcontractor" : "Add subcontractor"}
+      subtitle={
+        editing
+          ? "Changing the email changes how they sign in to the portal."
+          : "They get an access code for the sub portal — no password to remember."
+      }
       onClose={onClose}
       width={560}
       footer={
@@ -134,7 +166,7 @@ export default function NewSubModal({
             Cancel
           </button>
           <button className="btn btn-primary" onClick={save} disabled={busy}>
-            {busy ? "Adding…" : "Add sub"}
+            {busy ? "Saving…" : editing ? "Save changes" : "Add sub"}
           </button>
         </>
       }
@@ -222,6 +254,24 @@ export default function NewSubModal({
           Trades decide which bid packages you can invite them to.
         </div>
       </div>
+
+      {editing && (
+        <div className="field">
+          <label htmlFor="subStatus">Status</label>
+          <select
+            id="subStatus"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+          >
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+          </select>
+          <div className="text-muted" style={{ fontSize: 12, marginTop: 6 }}>
+            Inactive subs can&apos;t sign in and won&apos;t show up when you pick
+            who to invite.
+          </div>
+        </div>
+      )}
 
       {errors.form && (
         <div style={{ fontSize: 13, color: "#b3261e" }} role="alert">

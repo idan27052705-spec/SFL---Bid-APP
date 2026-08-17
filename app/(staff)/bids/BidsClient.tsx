@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import Blueprint from "@/components/Blueprint";
+import { ArrowRight } from "lucide-react";
 import { formatDateShort, money } from "@/lib/format";
 
 const MUTED = "color-mix(in srgb, var(--color-text) 55%, transparent)";
@@ -54,7 +55,7 @@ export default function BidsClient({ bids }: { bids: BidRow[] }) {
       <div className="pagebody" style={{ padding: "26px 28px 40px" }}>
         <Blueprint style={{ padding: "12px 18px 6px" }}>
           <div className="tablewrap">
-            <table className="table" style={{ minWidth: 800 }}>
+            <table className="table" style={{ minWidth: 880 }}>
               <thead>
                 <tr>
                   <th>Project / trade</th>
@@ -64,13 +65,14 @@ export default function BidsClient({ bids }: { bids: BidRow[] }) {
                   <th>Low bid</th>
                   <th>Due</th>
                   <th>Reminders</th>
-                  <th style={{ textAlign: "right" }}>Status</th>
+                  <th>Status</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={8} style={{ color: MUTED }}>
+                    <td colSpan={9} style={{ color: MUTED }}>
                       {bids.length === 0
                         ? "No bid packages yet. Open a project and create one."
                         : "Nothing matches that search."}
@@ -93,8 +95,13 @@ export default function BidsClient({ bids }: { bids: BidRow[] }) {
                       </td>
                       <td style={{ fontSize: 13 }}>{formatDateShort(b.due_date)}</td>
                       <td style={{ fontSize: 13 }}>{b.cadence}</td>
-                      <td style={{ textAlign: "right" }}>
+                      <td>
                         <span className="tag tag-accent">{b.status}</span>
+                      </td>
+                      <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                        <Link className="btn btn-secondary" href={`/bids/${b.short_id}`}>
+                          View bid <ArrowRight size={14} />
+                        </Link>
                       </td>
                     </tr>
                   ))

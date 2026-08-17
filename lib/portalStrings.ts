@@ -33,6 +33,7 @@ export const STR = {
     inDays: "days left",
     scope: "Scope of work",
     files: "Drawings & specs",
+    photos: "Photos & video",
     download: "Open",
     back: "Back",
 
@@ -102,6 +103,7 @@ export const STR = {
     inDays: "días restantes",
     scope: "Alcance del trabajo",
     files: "Planos y especificaciones",
+    photos: "Fotos y video",
     download: "Abrir",
     back: "Atrás",
 

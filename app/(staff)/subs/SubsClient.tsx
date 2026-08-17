@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import Blueprint from "@/components/Blueprint";
-import NewSubModal, { type Trade } from "./NewSubModal";
+import SubModal, { type Trade } from "./SubModal";
 
 const MUTED = "color-mix(in srgb, var(--color-text) 55%, transparent)";
 const FAINT = "color-mix(in srgb, var(--color-text) 50%, transparent)";
@@ -157,7 +157,7 @@ export default function SubsClient({
         </Blueprint>
       </div>
 
-      {modal && <NewSubModal trades={trades} onClose={() => setModal(false)} />}
+      {modal && <SubModal trades={trades} onClose={() => setModal(false)} />}
     </>
   );
 }

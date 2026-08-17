@@ -39,6 +39,8 @@ function Tile({
   file,
   portal,
   selected,
+  square,
+  selectable,
   onToggle,
   onOpen,
   onRemove,
@@ -46,6 +48,8 @@ function Tile({
   file: CollectionFile;
   portal: boolean;
   selected: boolean;
+  square: boolean;
+  selectable: boolean;
   onToggle: () => void;
   onOpen: () => void;
   onRemove?: () => void;
@@ -76,7 +80,7 @@ function Tile({
         style={{
           display: "block",
           width: "100%",
-          aspectRatio: "4 / 3",
+          aspectRatio: square ? "1 / 1" : "4 / 3",
           padding: 0,
           border: selected
             ? "2px solid var(--color-accent)"
@@ -122,7 +126,7 @@ function Tile({
       </button>
 
       {/* select box sits over the tile, top-left */}
-      <label
+      {selectable && <label
         style={{
           position: "absolute",
           top: 5,
@@ -141,7 +145,7 @@ function Tile({
           onChange={onToggle}
           aria-label={`Select ${file.name}`}
         />
-      </label>
+      </label>}
 
       {onRemove && (
         <button
@@ -185,6 +189,9 @@ export default function FileCollection({
   onRemove,
   empty = "Nothing here yet.",
   zipName = "files",
+  square = false,
+  columns,
+  showToolbar = true,
 }: {
   files: CollectionFile[];
   portal?: boolean;
@@ -194,6 +201,12 @@ export default function FileCollection({
   onRemove?: (id: string) => void;
   empty?: string;
   zipName?: string;
+  /** Square tiles rather than 4:3 — reads better for a photo wall. */
+  square?: boolean;
+  /** Fixed number of columns instead of auto-fill. */
+  columns?: number;
+  /** Subs don't need select-and-zip; hide the toolbar for them. */
+  showToolbar?: boolean;
 }) {
   const [view, setView] = useState<"grid" | "list">(defaultView);
   const [picked, setPicked] = useState<string[]>([]);
@@ -265,6 +278,7 @@ export default function FileCollection({
 
   return (
     <>
+      {showToolbar && (
       <div
         style={{
           display: "flex",
@@ -324,6 +338,7 @@ export default function FileCollection({
           </label>
         </div>
       </div>
+      )}
 
       {error && <div style={{ fontSize: 12, color: "#b3261e", marginBottom: 8 }}>{error}</div>}
 
@@ -333,8 +348,10 @@ export default function FileCollection({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
-            gap: 12,
+            gridTemplateColumns: columns
+              ? `repeat(${columns}, minmax(0, 1fr))`
+              : "repeat(auto-fill, minmax(120px, 1fr))",
+            gap: columns ? 8 : 12,
           }}
         >
           {files.map((f, i) => (
@@ -342,6 +359,8 @@ export default function FileCollection({
               key={f.id}
               file={f}
               portal={portal}
+              square={square}
+              selectable={showToolbar}
               selected={picked.includes(f.id)}
               onToggle={() => toggle(f.id)}
               onOpen={() => setViewing(i)}

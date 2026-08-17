@@ -36,12 +36,38 @@ export default async function PortalBidPage({
   // they guess the number in the URL.
   const { data: invitation } = await admin
     .from("invitations")
-    .select("id, status, decline_reason, responses(price, lead_time, exclusions, notes)")
+    .select("id, status, viewed_at, decline_reason, responses(price, lead_time, exclusions, notes)")
     .eq("bid_id", bid.id)
     .eq("sub_id", sub.id)
     .maybeSingle();
 
   if (!invitation) notFound();
+
+  /**
+   * "Opened the bid" now means they actually looked at it. It used to be
+   * stamped when the emailed link was clicked, which could happen from a
+   * preview pane without anyone reading anything.
+   */
+  if (!invitation.viewed_at) {
+    await admin
+      .from("invitations")
+      .update({
+        viewed_at: new Date().toISOString(),
+        status:
+          invitation.status === "Sent" || invitation.status === "No Response"
+            ? "Viewed"
+            : invitation.status,
+      })
+      .eq("id", invitation.id);
+
+    await admin.from("activity").insert({
+      company_id: sub.company_id,
+      type: "viewed",
+      text: `${sub.company_name} opened the bid`,
+      meta: (bid.trades as unknown as { name: string } | null)?.name ?? null,
+      bid_id: bid.id,
+    });
+  }
 
   const { data: lineItems } = await admin
     .from("bid_line_items")
@@ -51,15 +77,19 @@ export default async function PortalBidPage({
 
   const { data: attached } = await admin
     .from("bid_files")
-    .select("files(id, name)")
+    .select("files(id, name, kind, size_bytes)")
     .eq("bid_id", bid.id)
     .order("position");
 
-  const files = ((attached ?? []) as unknown as {
-    files: { id: string; name: string } | null;
-  }[])
+  type PortalFile = { id: string; name: string; kind: string; size_bytes: number | null };
+
+  const files = ((attached ?? []) as unknown as { files: PortalFile | null }[])
     .map((a) => a.files)
-    .filter(Boolean) as { id: string; name: string }[];
+    .filter(Boolean) as PortalFile[];
+
+  // Drawings read as a list; photos and video belong in a gallery.
+  const docs = files.filter((f) => f.kind === "doc");
+  const media = files.filter((f) => f.kind === "photo" || f.kind === "video");
 
   const project = bid.projects as unknown as {
     name: string;
@@ -135,7 +165,8 @@ export default async function PortalBidPage({
         existing={existing}
         declinedReason={invitation.status === "Denied" ? invitation.decline_reason : null}
         closed={closed}
-        files={files}
+        docs={docs}
+        media={media}
       />
     </PortalShell>
   );

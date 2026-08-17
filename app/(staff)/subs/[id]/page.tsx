@@ -11,6 +11,7 @@ import {
   RequestedChanges,
   type ChangeRequest,
 } from "./SubPanels";
+import EditSubButton from "./EditSubButton";
 
 export const dynamic = "force-dynamic";
 
@@ -28,14 +29,14 @@ export default async function SubDetailPage({ params }: { params: { id: string }
   const { data: sub } = await supabase
     .from("subs")
     .select(
-      "id, short_id, company_name, contact_name, email, phone, city, status, access_code_hash, access_code_enc, code_issued_at, code_last_used_at, created_at, sub_trades(trades(name))"
+      "id, short_id, company_name, contact_name, email, phone, city, status, access_code_hash, access_code_enc, code_issued_at, code_last_used_at, created_at, sub_trades(trade_id, trades(name))"
     )
     .eq("short_id", Number(params.id))
     .single();
 
   if (!sub) notFound();
 
-  const [{ data: invitations }, { data: requests }] = await Promise.all([
+  const [{ data: invitations }, { data: requests }, { data: trades }] = await Promise.all([
     supabase
       .from("invitations")
       .select(
@@ -48,6 +49,7 @@ export default async function SubDetailPage({ params }: { params: { id: string }
       .select("id, field, value, note, status, created_at")
       .eq("sub_id", sub.id)
       .order("created_at", { ascending: false }),
+    supabase.from("trades").select("id, name").order("name"),
   ]);
 
   type Inv = {
@@ -75,11 +77,11 @@ export default async function SubDetailPage({ params }: { params: { id: string }
   const declined = rows.filter((r) => r.status === "Denied").length;
   const opened = rows.filter((r) => r.viewed_at).length;
 
-  const tradeNames = ((sub.sub_trades ?? []) as unknown as {
+  const subTrades = (sub.sub_trades ?? []) as unknown as {
+    trade_id: string;
     trades: { name: string } | null;
-  }[])
-    .map((l) => l.trades?.name)
-    .filter(Boolean) as string[];
+  }[];
+  const tradeNames = subTrades.map((l) => l.trades?.name).filter(Boolean) as string[];
 
   const facts: [string, string][] = [
     ["Contact", sub.contact_name || "—"],
@@ -122,6 +124,21 @@ export default async function SubDetailPage({ params }: { params: { id: string }
           <span className={sub.status === "Active" ? "tag tag-accent" : "tag tag-neutral"} style={{ marginBottom: 6 }}>
             {sub.status}
           </span>
+          {canWrite(user) && (
+            <EditSubButton
+              trades={trades ?? []}
+              sub={{
+                shortId: sub.short_id,
+                companyName: sub.company_name,
+                contactName: sub.contact_name,
+                email: sub.email,
+                phone: sub.phone,
+                city: sub.city,
+                status: sub.status,
+                tradeIds: subTrades.map((l) => l.trade_id),
+              }}
+            />
+          )}
           {canWrite(user) && <PreviewAsSubButton shortId={sub.short_id} />}
         </div>
       </header>

@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function PortalLoginPage({
   searchParams,
 }: {
-  searchParams: { expired?: string };
+  searchParams: { expired?: string; email?: string };
 }) {
   const sub = await getPortalSub();
   if (sub) redirect("/portal/bids");
@@ -19,7 +19,7 @@ export default async function PortalLoginPage({
 
   return (
     <PortalShell lang={lang}>
-      <LoginForm lang={lang} expired={searchParams.expired === "1"} />
+      <LoginForm lang={lang} expired={searchParams.expired === "1"} email={searchParams.email} />
     </PortalShell>
   );
 }

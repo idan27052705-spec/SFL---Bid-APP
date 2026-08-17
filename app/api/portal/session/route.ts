@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyAccessCode } from "@/lib/accessCode";
 import { setPortalSession, clearPortalSession } from "@/lib/portalSession";
+import { cookies } from "next/headers";
 import { STR, pickLang } from "@/lib/portalStrings";
 import { wrongOrigin } from "@/lib/guard";
 
@@ -72,5 +73,21 @@ export async function POST(request: Request) {
     .update({ code_last_used_at: new Date().toISOString() })
     .eq("id", sub.id);
 
-  return NextResponse.json({ ok: true });
+  // If they arrived from an emailed link, drop them on that bid — but only
+  // if the remembered invitation actually belongs to THIS sub.
+  let redirect = "/portal/bids";
+  const pending = cookies().get("sfl_pending")?.value;
+  if (pending) {
+    const [invitationId, bidShortId] = pending.split(":");
+    const { data: invitation } = await admin
+      .from("invitations")
+      .select("id")
+      .eq("id", invitationId)
+      .eq("sub_id", sub.id)
+      .maybeSingle();
+    if (invitation) redirect = `/portal/bids/${bidShortId}`;
+    cookies().set("sfl_pending", "", { path: "/", maxAge: 0 });
+  }
+
+  return NextResponse.json({ ok: true, redirect });
 }
