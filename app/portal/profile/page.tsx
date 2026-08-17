@@ -33,18 +33,9 @@ export default async function PortalProfilePage() {
   ];
 
   return (
-    <PortalShell lang={lang} subName={sub.company_name}>
-      <div
-        style={{
-          width: "min(100%, 720px)",
-          margin: "0 auto",
-          padding: "32px 24px 72px",
-          display: "flex",
-          flexDirection: "column",
-          gap: 22,
-        }}
-      >
-        <h1 style={{ fontSize: 36, margin: 0 }}>{t.myInfo}</h1>
+    <PortalShell lang={lang} subName={sub.company_name} narrow>
+      <>
+        <h1 className="ptitle">{t.myInfo}</h1>
 
         <div className="blueprint" style={{ padding: 22 }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: "14px 26px" }}>
@@ -62,7 +53,7 @@ export default async function PortalProfilePage() {
         </div>
 
         <ProfileForm lang={lang} requests={requests ?? []} />
-      </div>
+      </>
     </PortalShell>
   );
 }

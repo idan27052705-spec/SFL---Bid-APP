@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, Pencil } from "lucide-react";
 import Blueprint from "@/components/Blueprint";
-import SubModal, { type Trade } from "./SubModal";
+import SubModal, { type Trade, type EditableSub } from "./SubModal";
 
 const MUTED = "color-mix(in srgb, var(--color-text) 55%, transparent)";
 const FAINT = "color-mix(in srgb, var(--color-text) 50%, transparent)";
@@ -14,9 +14,11 @@ export type SubRow = {
   short_id: number;
   company: string;
   contact: string;
+  email: string;
   phone: string;
   city: string;
   trades: string[];
+  tradeIds: string[];
   invited: number;
   responded: number;
   code: string | null;
@@ -35,6 +37,7 @@ export default function SubsClient({
   const [search, setSearch] = useState("");
   const [trade, setTrade] = useState("All");
   const [modal, setModal] = useState(false);
+  const [editing, setEditing] = useState<EditableSub | null>(null);
 
   const rows = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -99,7 +102,7 @@ export default function SubsClient({
 
         <Blueprint style={{ padding: "12px 18px 6px" }}>
           <div className="tablewrap">
-            <table className="table" style={{ minWidth: 860 }}>
+            <table className="table" style={{ minWidth: 940 }}>
               <thead>
                 <tr>
                   <th>Company</th>
@@ -108,13 +111,14 @@ export default function SubsClient({
                   <th>Invited</th>
                   <th>Response rate</th>
                   <th>Access code</th>
-                  <th style={{ textAlign: "right" }}>Status</th>
+                  <th>Status</th>
+                  {canWrite && <th />}
                 </tr>
               </thead>
               <tbody>
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={7} style={{ color: MUTED }}>
+                    <td colSpan={canWrite ? 8 : 7} style={{ color: MUTED }}>
                       {subs.length === 0
                         ? "No subs yet. Add the ones you actually bid with."
                         : "Nothing matches that."}
@@ -143,11 +147,32 @@ export default function SubsClient({
                       <td className="mono" style={{ fontSize: 13, letterSpacing: ".08em" }}>
                         {s.code ?? "—"}
                       </td>
-                      <td style={{ textAlign: "right" }}>
+                      <td>
                         <span className={s.status === "Active" ? "tag tag-accent" : "tag tag-neutral"}>
                           {s.status}
                         </span>
                       </td>
+                      {canWrite && (
+                        <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                          <button
+                            className="btn btn-secondary"
+                            onClick={() =>
+                              setEditing({
+                                shortId: s.short_id,
+                                companyName: s.company,
+                                contactName: s.contact,
+                                email: s.email,
+                                phone: s.phone,
+                                city: s.city,
+                                status: s.status,
+                                tradeIds: s.tradeIds,
+                              })
+                            }
+                          >
+                            <Pencil size={14} /> Edit
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}
@@ -158,6 +183,9 @@ export default function SubsClient({
       </div>
 
       {modal && <SubModal trades={trades} onClose={() => setModal(false)} />}
+      {editing && (
+        <SubModal trades={trades} sub={editing} onClose={() => setEditing(null)} />
+      )}
     </>
   );
 }

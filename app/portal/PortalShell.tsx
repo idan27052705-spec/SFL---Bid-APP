@@ -14,10 +14,13 @@ import { STR, type Lang } from "@/lib/portalStrings";
 export default function PortalShell({
   lang,
   subName,
+  narrow = false,
   children,
 }: {
   lang: Lang;
   subName?: string;
+  /** Reading-width column — used by the sign-in and My info pages. */
+  narrow?: boolean;
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -41,10 +44,10 @@ export default function PortalShell({
         }}
       >
         <div
+          className="phead"
           style={{
             width: "min(100%, 1080px)",
             margin: "0 auto",
-            padding: "14px 24px",
             display: "flex",
             alignItems: "center",
             gap: 16,
@@ -133,16 +136,20 @@ export default function PortalShell({
         </div>
       </header>
 
-      <main style={{ flex: 1 }}>{children}</main>
+      <main style={{ flex: 1 }}>
+        <div className={`pwrap${narrow ? " pwrap--narrow pwrap--tight" : ""}`}>
+          {children}
+        </div>
+      </main>
 
       <footer
         style={{
           borderTop: "1px solid var(--color-divider)",
-          padding: "16px 24px",
           fontSize: 12,
         }}
       >
         <div
+          className="phead"
           style={{
             width: "min(100%, 1080px)",
             margin: "0 auto",

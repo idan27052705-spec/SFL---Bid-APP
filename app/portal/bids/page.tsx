@@ -85,16 +85,7 @@ export default async function PortalBidsPage() {
 
   return (
     <PortalShell lang={lang} subName={sub.company_name}>
-      <div
-        style={{
-          width: "min(100%, 1080px)",
-          margin: "0 auto",
-          padding: "32px 24px 72px",
-          display: "flex",
-          flexDirection: "column",
-          gap: 34,
-        }}
-      >
+      <>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 20, flexWrap: "wrap" }}>
           <div style={{ marginRight: "auto", minWidth: 0 }}>
             <div style={{ fontSize: 11, letterSpacing: ".16em", textTransform: "uppercase", color: "var(--color-accent-700)" }}>
@@ -175,7 +166,7 @@ export default async function PortalBidsPage() {
         {submitted.length > 0 && (
           <div>
             <h4 style={{ margin: "0 0 10px" }}>{t.submitted}</h4>
-            <div className="blueprint" style={{ padding: "6px 18px" }}>
+            <div className="blueprint ptable">
               <div className="tablewrap">
               <table className="table">
                 <tbody>
@@ -208,7 +199,7 @@ export default async function PortalBidsPage() {
         {past.length > 0 && (
           <div>
             <h4 style={{ margin: "0 0 10px" }}>{t.past}</h4>
-            <div className="blueprint" style={{ padding: "6px 18px" }}>
+            <div className="blueprint ptable">
               <div className="tablewrap">
               <table className="table">
                 <tbody>
@@ -244,7 +235,7 @@ export default async function PortalBidsPage() {
             </div>
           </div>
         )}
-      </div>
+      </>
     </PortalShell>
   );
 }

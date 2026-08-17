@@ -13,7 +13,7 @@ export default async function SubsPage() {
     supabase
       .from("subs")
       .select(
-        "id, short_id, company_name, contact_name, email, phone, city, status, access_code_enc, sub_trades(trades(name))"
+        "id, short_id, company_name, contact_name, email, phone, city, status, access_code_enc, sub_trades(trade_id, trades(name))"
       )
       .order("company_name"),
     supabase.from("trades").select("id, name").order("position"),
@@ -30,7 +30,10 @@ export default async function SubsPage() {
   });
 
   const rows: SubRow[] = (subs ?? []).map((s) => {
-    const links = (s.sub_trades ?? []) as unknown as { trades: { name: string } | null }[];
+    const links = (s.sub_trades ?? []) as unknown as {
+      trade_id: string;
+      trades: { name: string } | null;
+    }[];
     const stat = stats.get(s.id) ?? { invited: 0, responded: 0 };
     return {
       id: s.id,
@@ -39,7 +42,9 @@ export default async function SubsPage() {
       contact: s.contact_name ?? "",
       phone: s.phone ?? "",
       city: s.city ?? "",
+      email: s.email ?? "",
       trades: links.map((l) => l.trades?.name).filter(Boolean) as string[],
+      tradeIds: links.map((l) => l.trade_id),
       invited: stat.invited,
       responded: stat.responded,
       code: revealCode(s.access_code_enc),

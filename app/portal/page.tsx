@@ -18,7 +18,7 @@ export default async function PortalLoginPage({
   const lang = pickLang(cookies().get("sfl_lang")?.value);
 
   return (
-    <PortalShell lang={lang}>
+    <PortalShell lang={lang} narrow>
       <LoginForm lang={lang} expired={searchParams.expired === "1"} email={searchParams.email} />
     </PortalShell>
   );

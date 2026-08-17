@@ -57,7 +57,7 @@ export default function LoginForm({
       }}
     >
       <div>
-        <h1 style={{ fontSize: 36, margin: 0 }}>{t.signIn}</h1>
+        <h1 className="ptitle">{t.signIn}</h1>
         <div style={{ fontSize: 14, color: "color-mix(in srgb, var(--color-text) 55%, transparent)" }}>
           {t.codeHint}
         </div>
