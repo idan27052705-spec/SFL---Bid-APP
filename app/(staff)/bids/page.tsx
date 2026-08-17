@@ -1,11 +1,11 @@
-import { requireUser } from "@/lib/auth";
+import { requireUser, canWrite } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import BidsClient, { type BidRow } from "./BidsClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function BidsPage() {
-  await requireUser();
+  const user = await requireUser();
   const supabase = createClient();
 
   const { data: bids } = await supabase
@@ -45,5 +45,5 @@ export default async function BidsPage() {
     };
   });
 
-  return <BidsClient bids={rows} />;
+  return <BidsClient bids={rows} canWrite={canWrite(user)} />;
 }

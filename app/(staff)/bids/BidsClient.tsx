@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import Blueprint from "@/components/Blueprint";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Pencil } from "lucide-react";
 import { formatDateShort, money } from "@/lib/format";
 
 const MUTED = "color-mix(in srgb, var(--color-text) 55%, transparent)";
@@ -22,7 +22,13 @@ export type BidRow = {
   status: string;
 };
 
-export default function BidsClient({ bids }: { bids: BidRow[] }) {
+export default function BidsClient({
+  bids,
+  canWrite,
+}: {
+  bids: BidRow[];
+  canWrite: boolean;
+}) {
   const [search, setSearch] = useState("");
 
   const rows = useMemo(() => {
@@ -55,7 +61,7 @@ export default function BidsClient({ bids }: { bids: BidRow[] }) {
       <div className="pagebody" style={{ padding: "26px 28px 40px" }}>
         <Blueprint style={{ padding: "12px 18px 6px" }}>
           <div className="tablewrap">
-            <table className="table" style={{ minWidth: 880 }}>
+            <table className="table" style={{ minWidth: 960 }}>
               <thead>
                 <tr>
                   <th>Project / trade</th>
@@ -99,6 +105,17 @@ export default function BidsClient({ bids }: { bids: BidRow[] }) {
                         <span className="tag tag-accent">{b.status}</span>
                       </td>
                       <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                        {/* An awarded package is history — the bid page
+                            hides Edit on the same rule. */}
+                        {canWrite && b.status !== "Awarded" && (
+                          <Link
+                            className="btn btn-ghost"
+                            href={`/bids/${b.short_id}/edit`}
+                            style={{ marginRight: 6 }}
+                          >
+                            <Pencil size={14} /> Edit bid
+                          </Link>
+                        )}
                         <Link className="btn btn-secondary" href={`/bids/${b.short_id}`}>
                           View bid <ArrowRight size={14} />
                         </Link>
