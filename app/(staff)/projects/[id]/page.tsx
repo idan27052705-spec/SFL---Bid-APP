@@ -324,7 +324,7 @@ export default async function ProjectDetailPage({
                     <th>Received</th>
                     <th>Denied</th>
                     <th>Due</th>
-                    <th>Reminders</th>
+                    <th>Cadence</th>
                     <th style={{ textAlign: "right" }}>Status</th>
                   </tr>
                 </thead>

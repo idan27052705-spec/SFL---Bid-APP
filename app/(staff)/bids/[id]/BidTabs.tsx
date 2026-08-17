@@ -13,6 +13,8 @@ import {
 import { REMINDER_CADENCES } from "@/app/config";
 import { money, timeAgo } from "@/lib/format";
 import CommentsModal, { type Comment } from "@/components/CommentsModal";
+import ConfirmModal from "@/components/ConfirmModal";
+import Modal, { ModalField } from "@/components/Modal";
 import FileCollection from "@/components/FileCollection";
 import { uploadFile } from "@/lib/uploadFile";
 
@@ -281,6 +283,10 @@ export function InvitationsTable({
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<{
+    row: InviteRow;
+    what: "resend" | "remove";
+  } | null>(null);
 
   async function act(id: string, what: "resend" | "remove" | "preview", subShortId?: number) {
     setBusy(id);
@@ -315,7 +321,7 @@ export function InvitationsTable({
               <th>Contact</th>
               <th>Sent</th>
               <th>Viewed</th>
-              <th>Reminders</th>
+              <th>Reminders sent</th>
               <th>Status</th>
               <th style={{ textAlign: "right" }}>Actions</th>
             </tr>
@@ -360,14 +366,27 @@ export function InvitationsTable({
                         <button
                           className="btn btn-ghost"
                           disabled={busy === i.id}
-                          onClick={() => act(i.id, "resend")}
+                          onClick={() => setConfirming({ row: i, what: "resend" })}
                         >
                           Send again
                         </button>
+                        {/* Destructive, so it reads destructive and sits
+                            apart from the two harmless buttons. */}
+                        <span
+                          style={{
+                            display: "inline-block",
+                            width: 1,
+                            height: 16,
+                            margin: "0 6px",
+                            verticalAlign: "-3px",
+                            background: "var(--color-divider)",
+                          }}
+                        />
                         <button
                           className="btn btn-ghost"
                           disabled={busy === i.id}
-                          onClick={() => act(i.id, "remove")}
+                          onClick={() => setConfirming({ row: i, what: "remove" })}
+                          style={{ color: "#b3261e" }}
                         >
                           Remove
                         </button>
@@ -380,6 +399,40 @@ export function InvitationsTable({
           </tbody>
         </table>
       </div>
+
+      {confirming && (
+        <ConfirmModal
+          title={confirming.what === "remove" ? "Remove this sub?" : "Send it again?"}
+          danger={confirming.what === "remove"}
+          confirmLabel={confirming.what === "remove" ? "Remove sub" : "Send again"}
+          busyLabel={confirming.what === "remove" ? "Removing…" : "Sending…"}
+          onClose={() => setConfirming(null)}
+          onConfirm={async () => {
+            const { row, what } = confirming;
+            setConfirming(null);
+            await act(row.id, what);
+          }}
+          body={
+            confirming.what === "remove" ? (
+              <>
+                <b>{confirming.row.company}</b> comes off this bid. Their link
+                stops working and any price they sent goes with it. You can
+                invite them again afterwards, but they&apos;d have to price it
+                from scratch.
+              </>
+            ) : (
+              <>
+                Emails the invitation to <b>{confirming.row.company}</b> again,
+                right now, with the same access code.
+                {confirming.row.reminders > 0 &&
+                  ` They've already had ${confirming.row.reminders} reminder${
+                    confirming.row.reminders === 1 ? "" : "s"
+                  }.`}
+              </>
+            )
+          }
+        />
+      )}
     </>
   );
 }
@@ -416,6 +469,10 @@ export function ResponseCards({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notesFor, setNotesFor] = useState<ResponseCard | null>(null);
+  const [awarding, setAwarding] = useState<ResponseCard | null>(null);
+  const [denying, setDenying] = useState<ResponseCard | null>(null);
+  const [reason, setReason] = useState("");
+  const [reasonError, setReasonError] = useState<string | undefined>();
 
   async function openFile(id: string) {
     const res = await fetch(`/api/files/${id}`);
@@ -424,8 +481,7 @@ export function ResponseCards({
     else setError(data.error || "Couldn't open that file.");
   }
 
-  async function award(subId: string, company: string) {
-    if (!confirm(`Award this package to ${company}? Reminders stop for everyone.`)) return;
+  async function award(subId: string) {
     setBusy(subId);
     const res = await fetch(`/api/bids/${bidShortId}/award`, {
       method: "POST",
@@ -439,8 +495,6 @@ export function ResponseCards({
   }
 
   async function deny(invitationId: string) {
-    const reason = prompt("Why are you ruling this one out?");
-    if (!reason?.trim()) return;
     setBusy(invitationId);
     const res = await fetch(`/api/invitations/${invitationId}/deny`, {
       method: "POST",
@@ -449,6 +503,7 @@ export function ResponseCards({
     });
     const data = await res.json();
     setBusy(null);
+    setReason("");
     if (!res.ok) setError(data.error);
     router.refresh();
   }
@@ -533,7 +588,11 @@ export function ResponseCards({
                   <button
                     className="btn btn-secondary"
                     disabled={busy === r.invitationId}
-                    onClick={() => deny(r.invitationId)}
+                    onClick={() => {
+                      setReason("");
+                      setReasonError(undefined);
+                      setDenying(r);
+                    }}
                   >
                     Deny
                   </button>
@@ -541,7 +600,7 @@ export function ResponseCards({
                     className="btn btn-primary"
                     style={{ marginLeft: "auto" }}
                     disabled={busy === r.subId}
-                    onClick={() => award(r.subId, r.company)}
+                    onClick={() => setAwarding(r)}
                   >
                     Award
                   </button>
@@ -565,6 +624,77 @@ export function ResponseCards({
           canWrite={canWrite}
           onClose={() => setNotesFor(null)}
         />
+      )}
+
+      {awarding && (
+        <ConfirmModal
+          title="Award this package?"
+          confirmLabel="Award the job"
+          busyLabel="Awarding…"
+          onClose={() => setAwarding(null)}
+          onConfirm={async () => {
+            const subId = awarding.subId;
+            setAwarding(null);
+            await award(subId);
+          }}
+          body={
+            <>
+              <b>{awarding.company}</b> gets the job at{" "}
+              <b className="tabular">{money(awarding.price)}</b>. They&apos;re
+              emailed straight away, and reminders stop for everyone else on
+              this package.
+              <div style={{ color: MUTED, marginTop: 8 }}>
+                Nothing is sent to the subs who didn&apos;t win.
+              </div>
+            </>
+          }
+        />
+      )}
+
+      {denying && (
+        <Modal
+          title="Rule this one out"
+          subtitle={`${denying.company} — ${money(denying.price)}`}
+          width={440}
+          onClose={() => setDenying(null)}
+          footer={
+            <>
+              <button className="btn btn-secondary" onClick={() => setDenying(null)}>
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                style={{ background: "#b3261e", borderColor: "#b3261e", color: "#fff" }}
+                disabled={busy === denying.invitationId}
+                onClick={async () => {
+                  if (!reason.trim()) {
+                    setReasonError("Say why — it's what you'll read six months from now.");
+                    return;
+                  }
+                  const id = denying.invitationId;
+                  setDenying(null);
+                  await deny(id);
+                }}
+              >
+                Rule out
+              </button>
+            </>
+          }
+        >
+          <ModalField
+            id="denyReason"
+            label="Why"
+            required
+            value={reason}
+            error={reasonError}
+            placeholder="Missing the tie-ins, and no lead time given"
+            textarea
+            onChange={(v) => {
+              setReason(v);
+              setReasonError(undefined);
+            }}
+          />
+        </Modal>
       )}
     </>
   );

@@ -15,7 +15,7 @@ export const STR = {
     codeHint: "The 6-digit code from your invitation",
     badLogin:
       "That email and code don't match. Check the code in your invitation, or call the office.",
-    tooMany: "Too many tries. Wait a minute and try again.",
+    tooMany: "Too many wrong codes. Try again in {minutes} minutes, or call the office.",
     signOut: "Sign out",
 
     myInfo: "My info",
@@ -85,7 +85,7 @@ export const STR = {
     codeHint: "El código de 6 dígitos de su invitación",
     badLogin:
       "El correo y el código no coinciden. Revise el código de su invitación o llame a la oficina.",
-    tooMany: "Demasiados intentos. Espere un minuto e intente de nuevo.",
+    tooMany: "Demasiados códigos incorrectos. Intente de nuevo en {minutes} minutos, o llame a la oficina.",
     signOut: "Salir",
 
     myInfo: "Mis datos",

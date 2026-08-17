@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import ConfirmModal from "@/components/ConfirmModal";
 import { useRouter } from "next/navigation";
 import { FileText, Image as ImageIcon, Video } from "lucide-react";
 import { formatBytes, timeAgo } from "@/lib/format";
@@ -32,6 +33,7 @@ export default function ProjectFiles({
   const [error, setError] = useState<string | null>(null);
   const [stage, setStage] = useState<string | null>(null);
   const [viewing, setViewing] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState<{ id: string; name: string } | null>(null);
 
   async function upload(list: FileList | null) {
     if (!list || list.length === 0) return;
@@ -54,8 +56,7 @@ export default function ProjectFiles({
     router.refresh();
   }
 
-  async function remove(id: string, name: string) {
-    if (!confirm(`Delete "${name}"? This can't be undone.`)) return;
+  async function remove(id: string) {
     const res = await fetch(`/api/files/${id}`, { method: "DELETE" });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
@@ -132,7 +133,7 @@ export default function ProjectFiles({
                       <button
                         className="btn btn-ghost"
                         style={{ padding: 0, fontSize: 12 }}
-                        onClick={() => remove(f.id, f.name)}
+                        onClick={() => setDeleting({ id: f.id, name: f.name })}
                       >
                         Delete
                       </button>
@@ -147,6 +148,27 @@ export default function ProjectFiles({
 
       {viewing !== null && (
         <FileViewer files={files} index={viewing} onClose={() => setViewing(null)} />
+      )}
+
+      {deleting && (
+        <ConfirmModal
+          title="Delete this file?"
+          danger
+          confirmLabel="Delete file"
+          busyLabel="Deleting…"
+          onClose={() => setDeleting(null)}
+          onConfirm={async () => {
+            const id = deleting.id;
+            setDeleting(null);
+            await remove(id);
+          }}
+          body={
+            <>
+              <b>{deleting.name}</b> is removed from this project for good. Any
+              sub already looking at it loses it too.
+            </>
+          }
+        />
       )}
     </div>
   );

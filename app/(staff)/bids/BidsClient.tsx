@@ -64,7 +64,7 @@ export default function BidsClient({ bids }: { bids: BidRow[] }) {
                   <th>Received</th>
                   <th>Low bid</th>
                   <th>Due</th>
-                  <th>Reminders</th>
+                  <th>Cadence</th>
                   <th>Status</th>
                   <th />
                 </tr>

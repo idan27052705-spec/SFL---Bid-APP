@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyAccessCode } from "@/lib/accessCode";
@@ -9,26 +10,18 @@ import { wrongOrigin } from "@/lib/guard";
 /**
  * POST /api/portal/session — sub sign-in with email (or phone) + access code.
  *
- * A 6-digit code is only a million possibilities, so the real protection is
- * this limiter, not the code's length. It's per server instance and resets
- * on deploy — good enough to stop a script, and it's backed up by the fact
- * that a wrong guess reveals nothing about which half was wrong.
+ * A 6-digit code is a million possibilities, which a script can walk
+ * through. The real protection is the limiter, and it counts in the
+ * database: this runs on serverless, where an in-memory counter starts
+ * empty on every cold start and stops nothing.
+ *
+ * The key is hashed so no email address is written to that table.
  */
 
-const attempts = new Map<string, { count: number; first: number }>();
-const WINDOW = 60_000;
-const MAX = 8;
+const MAX_TRIES = 8;
 
-function rateLimited(key: string) {
-  const now = Date.now();
-  const rec = attempts.get(key);
-  if (!rec || now - rec.first > WINDOW) {
-    attempts.set(key, { count: 1, first: now });
-    return false;
-  }
-  rec.count += 1;
-  return rec.count > MAX;
-}
+const limiterKey = (ip: string, identifier: string) =>
+  createHash("sha256").update(`${ip}:${identifier}`).digest("hex");
 
 export async function POST(request: Request) {
   const bad = wrongOrigin();
@@ -45,10 +38,26 @@ export async function POST(request: Request) {
 
   const ip =
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  if (rateLimited(`${ip}:${identifier}`))
-    return NextResponse.json({ error: t.tooMany }, { status: 429 });
 
   const admin = createAdminClient();
+  const key = limiterKey(ip, identifier);
+
+  const { data: lockedUntil } = await admin.rpc("portal_login_attempt", {
+    p_key: key,
+    p_max: MAX_TRIES,
+  });
+
+  if (lockedUntil) {
+    const minutes = Math.max(
+      1,
+      Math.ceil((new Date(lockedUntil as string).getTime() - Date.now()) / 60000)
+    );
+    return NextResponse.json(
+      { error: t.tooMany.replace("{minutes}", String(minutes)) },
+      { status: 429 }
+    );
+  }
+
   const digits = identifier.replace(/\D/g, "");
 
   // Match on email, or on phone once punctuation is stripped.
@@ -67,6 +76,7 @@ export async function POST(request: Request) {
 
   clearPortalSession();
   setPortalSession(sub.id, sub.session_epoch ?? 1);
+  await admin.rpc("portal_login_clear", { p_key: key });
 
   await admin
     .from("subs")

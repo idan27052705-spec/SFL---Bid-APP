@@ -2,13 +2,13 @@ import Link from "next/link";
 import { requireUser, canWrite } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateShort, timeAgo } from "@/lib/format";
+import { daysUntil, dueLabel, todayLong, weekdayShort } from "@/lib/dates";
 import Blueprint from "@/components/Blueprint";
 import NudgeList, { type Nudge } from "./NudgeList";
 import DashboardActions from "./DashboardActions";
 
 export const dynamic = "force-dynamic";
 
-const DAY = 86400000;
 const MUTED = "color-mix(in srgb, var(--color-text) 55%, transparent)";
 const FAINT = "color-mix(in srgb, var(--color-text) 50%, transparent)";
 const HAIR = "1px solid color-mix(in srgb, var(--color-text) 8%, transparent)";
@@ -51,14 +51,19 @@ export default async function DashboardPage() {
   const neverOpened = awaiting.filter((iv) => !iv.viewed_at);
   const received = live.filter(hasPrice);
 
-  const daysAway = (due: string | null) =>
-    due == null ? null : Math.round((new Date(due + "T00:00:00").getTime() - now) / DAY);
+  // An elapsed span, not a calendar day — timezone doesn't come into it.
   const sinceSent = (sentAt: string | null) =>
-    sentAt ? Math.floor((now - new Date(sentAt).getTime()) / DAY) : 0;
+    sentAt ? Math.floor((now - new Date(sentAt).getTime()) / 86400000) : 0;
 
+  // Overdue is its own thing. Lumping it into "due this week" hid the
+  // bids that already closed — which are the ones you'd act on first.
+  const overdue = openBids.filter((b) => {
+    const d = daysUntil(b.due_date);
+    return d != null && d < 0;
+  });
   const dueThisWeek = openBids.filter((b) => {
-    const d = daysAway(b.due_date);
-    return d != null && d <= 7;
+    const d = daysUntil(b.due_date);
+    return d != null && d >= 0 && d <= 7;
   });
 
   const projectCount = new Set(
@@ -81,8 +86,15 @@ export default async function DashboardPage() {
     {
       label: "Due this week",
       value: dueThisWeek.length,
-      delta: dueThisWeek.some((b) => (daysAway(b.due_date) ?? 99) <= 1) ? "closing now" : "",
+      delta: dueThisWeek.some((b) => (daysUntil(b.due_date) ?? 99) <= 1) ? "closing now" : "",
       note: "Bids closing within seven days",
+    },
+    {
+      label: "Past due",
+      value: overdue.length,
+      delta: overdue.length ? "chase these" : "",
+      note: overdue.length ? "Closed with no price in" : "Nothing overdue",
+      alert: overdue.length > 0,
     },
     {
       label: "Prices received",
@@ -99,7 +111,7 @@ export default async function DashboardPage() {
     const quiet = inv.length - inv.filter((i) => i.viewed_at).length;
     const denied = inv.filter((i) => i.status === "Denied").length;
     const pct = (n: number) => (inv.length ? `${Math.round((n / inv.length) * 100)}%` : "0%");
-    const d = daysAway(b.due_date);
+    const d = daysUntil(b.due_date);
 
     return {
       id: b.id,
@@ -113,8 +125,8 @@ export default async function DashboardPage() {
       trackingNote:
         (quiet > 0 ? `${quiet} never opened` : "All opened") + (denied ? ` · ${denied} declined` : ""),
       due: formatDateShort(b.due_date),
-      dueNote:
-        d == null ? "" : d < 0 ? `${Math.abs(d)} days overdue` : d === 0 ? "today" : d === 1 ? "tomorrow" : `in ${d} days`,
+      dueNote: dueLabel(b.due_date),
+      overdue: d != null && d < 0,
       cadence: b.cadence,
       status: b.status,
     };
@@ -138,22 +150,20 @@ export default async function DashboardPage() {
     })
     .sort((a, b) => b.daysSinceSent - a.daysSinceSent);
 
-  const dueSoon = dueThisWeek.slice(0, 5).map((b) => {
+  const dueSoon = [...overdue, ...dueThisWeek].slice(0, 5).map((b) => {
     const inv = invites.filter((i) => i.bid_id === b.id);
-    const dt = b.due_date ? new Date(b.due_date + "T00:00:00") : null;
     return {
       id: b.id,
       shortId: b.short_id,
-      day: dt ? dt.toLocaleDateString("en-US", { weekday: "short" }) : "—",
+      day: weekdayShort(b.due_date),
+      late: (daysUntil(b.due_date) ?? 0) < 0,
       trade: (b.trades as unknown as { name: string } | null)?.name ?? "—",
       project: (b.projects as unknown as { name: string } | null)?.name ?? "",
       counts: `${inv.filter(hasPrice).length} of ${inv.length}`,
     };
   });
 
-  const today = new Date().toLocaleDateString("en-US", {
-    weekday: "long", month: "long", day: "numeric", year: "numeric",
-  });
+  const today = todayLong();
 
   return (
     <>
@@ -178,10 +188,20 @@ export default async function DashboardPage() {
                 {s.label}
               </div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                <div style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 40, lineHeight: 1 }}>
+                <div
+                  style={{
+                    fontFamily: "var(--font-heading)",
+                    fontWeight: 600,
+                    fontSize: 40,
+                    lineHeight: 1,
+                    color: s.alert ? "#b3261e" : undefined,
+                  }}
+                >
                   {s.value}
                 </div>
-                <div style={{ fontSize: 12, color: "var(--color-accent-700)" }}>{s.delta}</div>
+                <div style={{ fontSize: 12, color: s.alert ? "#b3261e" : "var(--color-accent-700)" }}>
+                  {s.delta}
+                </div>
               </div>
               <div style={{ fontSize: 12, color: MUTED }}>{s.note}</div>
             </Blueprint>
@@ -206,7 +226,7 @@ export default async function DashboardPage() {
                       <tr>
                         <th style={{ width: "34%" }}>Project / trade</th>
                         <th style={{ width: "24%" }}>Responses</th>
-                        <th>Due</th><th>Reminders</th>
+                        <th>Due</th><th>Cadence</th>
                         <th style={{ textAlign: "right" }}>Status</th>
                       </tr>
                     </thead>
@@ -229,7 +249,9 @@ export default async function DashboardPage() {
                           </td>
                           <td style={{ fontSize: 13 }}>
                             <div>{b.due}</div>
-                            <div style={{ fontSize: 11, color: FAINT }}>{b.dueNote}</div>
+                            <div style={{ fontSize: 11, color: b.overdue ? "#b3261e" : FAINT }}>
+                              {b.dueNote}
+                            </div>
                           </td>
                           <td style={{ fontSize: 13 }}>{b.cadence}</td>
                           <td style={{ textAlign: "right" }}><span className="tag tag-accent">{b.status}</span></td>
@@ -255,7 +277,7 @@ export default async function DashboardPage() {
                 dueSoon.map((d) => (
                   <Link key={d.id} href={`/bids/${d.shortId}`} className="clickrow"
                     style={{ display: "flex", gap: 12, alignItems: "baseline", padding: "9px 0", borderTop: HAIR, textDecoration: "none", color: "inherit" }}>
-                    <div style={{ fontFamily: "var(--font-heading)", fontSize: 13, letterSpacing: ".06em", textTransform: "uppercase", width: 56, flex: "none", color: "var(--color-accent-700)" }}>
+                    <div style={{ fontFamily: "var(--font-heading)", fontSize: 13, letterSpacing: ".06em", textTransform: "uppercase", width: 56, flex: "none", color: d.late ? "#b3261e" : "var(--color-accent-700)" }}>
                       {d.day}
                     </div>
                     <div style={{ minWidth: 0, flex: 1 }}>

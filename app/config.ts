@@ -13,6 +13,12 @@ export const APP = {
   portalUrl: "https://bids.sflbuildersgroup.com/portal",
 } as const;
 
+/**
+ * Where the company works. Every date the app shows is computed here,
+ * not where the server happens to run.
+ */
+export const TIMEZONE = "America/New_York";
+
 export const COMPANY = {
   name: "SFL Builders Group",
   region: "South Florida",

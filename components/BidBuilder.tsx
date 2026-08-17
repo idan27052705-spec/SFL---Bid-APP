@@ -9,6 +9,7 @@ import { formatDate } from "@/lib/format";
 import Blueprint from "@/components/Blueprint";
 import FileCollection from "@/components/FileCollection";
 import { uploadFile } from "@/lib/uploadFile";
+import NotAutomatic from "@/components/NotAutomatic";
 
 const MUTED = "color-mix(in srgb, var(--color-text) 55%, transparent)";
 const FAINT = "color-mix(in srgb, var(--color-text) 50%, transparent)";
@@ -518,9 +519,13 @@ export default function BidBuilder({
           </Blueprint>
 
           <Blueprint style={{ padding: 18 }}>
-            <h4 style={{ margin: "0 0 6px" }}>Reminders</h4>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <h4 style={{ margin: "0 0 6px" }}>Reminders</h4>
+              <NotAutomatic />
+            </div>
             <div style={{ fontSize: 12, color: MUTED, marginBottom: 10 }}>
-              Stops on a price, a decline, or an award.
+              Saved with the bid. Until the scheduled job is switched on,
+              reminders go out when you send them from the dashboard.
             </div>
             <select className="input" value={cadence} onChange={(e) => setCadence(e.target.value)}>
               {REMINDER_CADENCES.filter((c) => c !== "Stopped").map((c) => (

@@ -18,6 +18,17 @@ export default function LoginForm() {
   );
   const [busy, setBusy] = useState(false);
 
+  /**
+   * Only ever follow a path inside this app. "//evil.com" and
+   * "https://evil.com" are both valid browser destinations, so a link
+   * like /login?next=https://evil.com would otherwise hand someone
+   * straight from our sign-in form to a copy of it.
+   */
+  function safeNext(next: string | null) {
+    if (!next || !next.startsWith("/") || next.startsWith("//")) return "/";
+    return next;
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -40,7 +51,7 @@ export default function LoginForm() {
       return;
     }
 
-    router.push(params.get("next") || "/");
+    router.push(safeNext(params.get("next")));
     router.refresh();
   }
 
