@@ -4,7 +4,7 @@ import { requireUser, canWrite } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { renderTemplate, siteUrl } from "@/lib/email";
 import { formatDate } from "@/lib/format";
-import { COMPANY } from "@/app/config";
+import { getCompany } from "@/lib/company";
 import InviteClient, { type InviteSub } from "./InviteClient";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +13,7 @@ const MUTED = "color-mix(in srgb, var(--color-text) 55%, transparent)";
 
 export default async function InvitePage({ params }: { params: { id: string } }) {
   const user = await requireUser();
+  const company = await getCompany(user.companyId);
   if (!canWrite(user)) redirect(`/bids/${params.id}`);
 
   const supabase = createClient();
@@ -60,8 +61,8 @@ export default async function InvitePage({ params }: { params: { id: string } })
   const fields = {
     contact: "[their contact]",
     sub_company: "[their company]",
-    company_name: COMPANY.name,
-    company_phone: COMPANY.phone,
+    company_name: company.name,
+    company_phone: company.phone,
     project: project?.name ?? "",
     city: project?.city ?? "",
     trade: trade?.name ?? "",
@@ -75,7 +76,7 @@ export default async function InvitePage({ params }: { params: { id: string } })
     subject: renderTemplate(template?.subject ?? "", fields),
     email: renderTemplate(template?.body ?? "", fields),
     sms: renderTemplate(
-      `${COMPANY.name}: bid request for ${trade?.name ?? ""} at ${project?.name ?? ""}. Due {due_date}. Open {portal_url} — code [their code]. Questions? ${COMPANY.phone}`,
+      `${company.name}: bid request for ${trade?.name ?? ""} at ${project?.name ?? ""}. Due {due_date}. Open {portal_url} — code [their code]. Questions? ${company.phone}`,
       fields
     ),
   };

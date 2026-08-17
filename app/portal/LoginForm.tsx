@@ -3,16 +3,19 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { STR, type Lang } from "@/lib/portalStrings";
-import { COMPANY } from "@/app/config";
+
 
 export default function LoginForm({
   lang,
   expired,
   email: prefill,
+  phone,
 }: {
   lang: Lang;
   expired: boolean;
   email?: string;
+  /** The office number a sub calls when the code doesn't work. */
+  phone: string;
 }) {
   const router = useRouter();
   const t = STR[lang];
@@ -75,7 +78,7 @@ export default function LoginForm({
           }}
         >
           That link has expired. Sign in with your access code, or call the
-          office at {COMPANY.phone}.
+          office at {phone}.
         </div>
       )}
 

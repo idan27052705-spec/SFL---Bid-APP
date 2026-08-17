@@ -5,6 +5,7 @@ import { getPortalSub } from "@/lib/portalSession";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { STR, pickLang } from "@/lib/portalStrings";
 import { formatDate } from "@/lib/format";
+import { getCompany, companyFooter } from "@/lib/company";
 import PortalShell from "../../PortalShell";
 import BidActions from "./BidActions";
 
@@ -107,8 +108,11 @@ export default async function PortalBidPage({
   const closed = bid.status === "Awarded" || bid.status === "Closed";
   const won = bid.awarded_sub_id === sub.id;
 
+  const company = await getCompany(sub.company_id);
+  const shell = { name: company.name, footer: companyFooter(company), phone: company.phone };
+
   return (
-    <PortalShell lang={lang} subName={sub.company_name}>
+    <PortalShell company={shell} lang={lang} subName={sub.company_name}>
       <Link href="/portal/bids" className="btn btn-ghost" style={{ padding: 0, marginBottom: 12 }}>
         ← {t.back}
       </Link>

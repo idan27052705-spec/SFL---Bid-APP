@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { APP, COMPANY } from "@/app/config";
+import { APP } from "@/app/config";
 import { STR, type Lang } from "@/lib/portalStrings";
 
 /**
@@ -11,14 +11,19 @@ import { STR, type Lang } from "@/lib/portalStrings";
  * once every few weeks, so everything is a size bigger and there are
  * only two places to go.
  */
+export type PortalCompany = { name: string; footer: string; phone: string };
+
 export default function PortalShell({
   lang,
   subName,
+  company,
   narrow = false,
   children,
 }: {
   lang: Lang;
   subName?: string;
+  /** The GC's own details, as saved in Settings > Company details. */
+  company: PortalCompany;
   /** Reading-width column — used by the sign-in and My info pages. */
   narrow?: boolean;
   children: React.ReactNode;
@@ -58,7 +63,7 @@ export default function PortalShell({
             href={subName ? "/portal/bids" : "/portal"}
             style={{ display: "flex", alignItems: "center", gap: 14, textDecoration: "none", color: "inherit" }}
           >
-            <Image src={APP.logo} alt={COMPANY.name} width={52} height={52} priority />
+            <Image src={APP.logo} alt={company.name} width={52} height={52} priority />
             <div style={{ lineHeight: 1.1 }}>
               <div
                 style={{
@@ -69,7 +74,7 @@ export default function PortalShell({
                   textTransform: "uppercase",
                 }}
               >
-                {COMPANY.name}
+                {company.name}
               </div>
               <div
                 style={{
@@ -159,9 +164,7 @@ export default function PortalShell({
             color: "color-mix(in srgb, var(--color-text) 50%, transparent)",
           }}
         >
-          <span>
-            {COMPANY.name} · {COMPANY.region} · {COMPANY.phone}
-          </span>
+          <span>{company.footer}</span>
           <span style={{ marginLeft: "auto" }}>{APP.domain}/portal</span>
         </div>
       </footer>

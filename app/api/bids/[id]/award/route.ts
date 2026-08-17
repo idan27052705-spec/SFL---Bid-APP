@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireApiUser, forbidden, badRequest, notFound } from "@/lib/api";
 import { sendEmail, renderTemplate } from "@/lib/email";
 import { money } from "@/lib/format";
-import { COMPANY } from "@/app/config";
+import { getCompany } from "@/lib/company";
 import { wrongOrigin } from "@/lib/guard";
 
 /**
@@ -23,6 +23,7 @@ export async function POST(
   const auth = await requireApiUser();
   if ("error" in auth) return auth.error;
   const { user } = auth;
+  const company = await getCompany(user.companyId);
 
   if (user.role === "viewer") return forbidden();
 
@@ -96,14 +97,15 @@ export async function POST(
       const fields = {
         contact: sub.contact_name || sub.company_name,
         sub_company: sub.company_name,
-        company_name: COMPANY.name,
-        company_phone: COMPANY.phone,
+        company_name: company.name,
+        company_phone: company.phone,
         project: project?.name ?? "",
         trade: trade?.name ?? "",
         bid_title: bid.title,
         price: money(price),
       };
       const result = await sendEmail({
+      companyId: user.companyId,
         to: sub.email,
         subject: renderTemplate(template.subject, fields),
         text: renderTemplate(template.body, fields),

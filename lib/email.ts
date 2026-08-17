@@ -1,5 +1,6 @@
 import { Resend } from "resend";
-import { COMPANY, APP } from "@/app/config";
+import { APP } from "@/app/config";
+import { getCompany, companyFooter, type CompanyDetails } from "@/lib/company";
 
 /**
  * Email sending.
@@ -27,7 +28,7 @@ export function renderTemplate(text: string, fields: MergeFields): string {
 }
 
 /** Plain text -> simple, readable HTML. No marketing chrome. */
-function toHtml(text: string, portalUrl?: string) {
+function toHtml(text: string, company: CompanyDetails, portalUrl?: string) {
   const escaped = text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -42,10 +43,10 @@ function toHtml(text: string, portalUrl?: string) {
 
   return `<!doctype html><html><body style="margin:0;background:#f2f2f3">
 <div style="max-width:560px;margin:0 auto;padding:28px 22px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55;color:#1d1f20">
-<div style="font-weight:700;letter-spacing:.06em;font-size:13px;text-transform:uppercase;color:#597ea3;padding-bottom:14px;border-bottom:1px solid #d4d4d7;margin-bottom:18px">${COMPANY.name}</div>
+<div style="font-weight:700;letter-spacing:.06em;font-size:13px;text-transform:uppercase;color:#597ea3;padding-bottom:14px;border-bottom:1px solid #d4d4d7;margin-bottom:18px">${company.name}</div>
 <div style="white-space:pre-wrap">${withLinks}</div>
 <div style="margin-top:26px;padding-top:14px;border-top:1px solid #d4d4d7;font-size:12px;color:#7a7a7d">
-${COMPANY.name} · ${COMPANY.region} · ${COMPANY.phone}<br>${APP.domain}
+${companyFooter(company)}<br>${APP.domain}
 </div>
 </div></body></html>`;
 }
@@ -57,20 +58,24 @@ export async function sendEmail({
   subject,
   text,
   portalUrl,
+  companyId,
 }: {
   to: string;
   subject: string;
   text: string;
   portalUrl?: string;
+  /** Which company this is going out as. Defaults to the only one. */
+  companyId?: string;
 }): Promise<SendResult> {
   try {
+    const company = await getCompany(companyId);
     const { data, error } = await resend().emails.send({
-      from: process.env.EMAIL_FROM || `${COMPANY.name} <${COMPANY.fromEmail}>`,
-      replyTo: process.env.EMAIL_REPLY_TO || COMPANY.replyTo,
+      from: process.env.EMAIL_FROM || `${company.name} <${company.fromEmail}>`,
+      replyTo: process.env.EMAIL_REPLY_TO || company.replyTo,
       to,
       subject,
       text,
-      html: toHtml(text, portalUrl),
+      html: toHtml(text, company, portalUrl),
     });
 
     if (error) return { ok: false, error: error.message };

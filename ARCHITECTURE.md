@@ -54,6 +54,8 @@ Look: square corners, hairline borders, transparent fills. Headings in Barlow Co
 | `/subs` | **built** — search, trade filter, Add sub modal, code issued once |
 | `/subs/[id]` | **built** — details, bid history, portal access / regenerate code |
 | `/activity` | planned (S8) |
+| `/settings/account` | **built** — own name, email, password |
+| `/settings/company` | **built** — company details (name, phone, address, license, website, from/reply-to email). Owner edits, staff and viewers read. Feeds every email footer and the sub portal via `lib/company.ts` |
 | `/settings/trades`, `/settings/templates`, `/settings/reminders`, `/settings/team` | planned |
 | `/login` | **built** — email + password, Supabase Auth |
 
@@ -82,12 +84,14 @@ company scoping through RLS.
 
 Portal routes run on the service-role client (subs have no database account), so every one of them scopes reads and writes through the signed-in sub's own invitation.
 
+**Company (built):** `PATCH /api/company` — owner only.
+
 **Planned:** `POST /api/portal/profile/change-requests` · `POST /api/change-requests/:id/approve|decline` · `PATCH /api/settings/trades`
 
 ## Database — **live**
 
 Supabase project `cxgmvaonfnfxviaqtdcu`. Migrations in `supabase/migrations/`
-(`0001_init.sql` schema + RLS + storage bucket, `0002_seed.sql` company, trades,
+(`0006_company_details.sql` adds the company-detail columns; `0001_init.sql` schema + RLS + storage bucket, `0002_seed.sql` company, trades,
 settings, email templates).
 
 Migrations `0003_bid_files.sql` adds `bid_files`; `0004_access_code_recoverable.sql` adds `subs.access_code_enc`.

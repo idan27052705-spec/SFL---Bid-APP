@@ -6,7 +6,7 @@ import { sendEmail, renderTemplate, siteUrl } from "@/lib/email";
 import { makePortalToken } from "@/lib/portalToken";
 import { issueAccessCode, revealCode } from "@/lib/accessCode";
 import { formatDate } from "@/lib/format";
-import { COMPANY } from "@/app/config";
+import { getCompany } from "@/lib/company";
 
 /**
  * POST /api/invitations/nudge — "Send again to all".
@@ -23,6 +23,7 @@ export async function POST(request: Request) {
   const auth = await requireApiUser();
   if ("error" in auth) return auth.error;
   const { user } = auth;
+  const company = await getCompany(user.companyId);
   if (user.role === "viewer") return forbidden();
 
   const body = await request.json().catch(() => null);
@@ -99,8 +100,8 @@ export async function POST(request: Request) {
     const fields = {
       contact: sub.contact_name || sub.company_name,
       sub_company: sub.company_name,
-      company_name: COMPANY.name,
-      company_phone: COMPANY.phone,
+      company_name: company.name,
+      company_phone: company.phone,
       project: bid.projects?.name ?? "",
       city: bid.projects?.city ?? "",
       trade: bid.trades?.name ?? "",
@@ -111,6 +112,7 @@ export async function POST(request: Request) {
     };
 
     const result = await sendEmail({
+      companyId: user.companyId,
       to: sub.email,
       subject: renderTemplate(template.subject, fields),
       text: renderTemplate(template.body, fields),

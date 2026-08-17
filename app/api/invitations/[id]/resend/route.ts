@@ -5,7 +5,7 @@ import { sendEmail, renderTemplate, siteUrl } from "@/lib/email";
 import { makePortalToken } from "@/lib/portalToken";
 import { formatDate } from "@/lib/format";
 import { issueAccessCode, revealCode } from "@/lib/accessCode";
-import { COMPANY } from "@/app/config";
+import { getCompany } from "@/lib/company";
 import { wrongOrigin } from "@/lib/guard";
 
 /** POST /api/invitations/:id/resend — nudge one sub by email. */
@@ -19,6 +19,7 @@ export async function POST(
   const auth = await requireApiUser();
   if ("error" in auth) return auth.error;
   const { user } = auth;
+  const company = await getCompany(user.companyId);
 
   if (user.role === "viewer") return forbidden();
 
@@ -80,8 +81,8 @@ export async function POST(
   const fields = {
     contact: sub.contact_name || sub.company_name,
     sub_company: sub.company_name,
-    company_name: COMPANY.name,
-    company_phone: COMPANY.phone,
+    company_name: company.name,
+    company_phone: company.phone,
     project: bid.projects?.name ?? "",
     city: bid.projects?.city ?? "",
     trade: bid.trades?.name ?? "",
@@ -92,6 +93,7 @@ export async function POST(
   };
 
   const result = await sendEmail({
+      companyId: user.companyId,
     to: sub.email,
     subject: renderTemplate(template.subject, fields),
     text: renderTemplate(template.body, fields),

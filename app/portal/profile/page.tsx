@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { getPortalSub } from "@/lib/portalSession";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { STR, pickLang } from "@/lib/portalStrings";
+import { getCompany, companyFooter } from "@/lib/company";
 import PortalShell from "../PortalShell";
 import ProfileForm from "./ProfileForm";
 
@@ -32,8 +33,11 @@ export default async function PortalProfilePage() {
     ["City", sub.city ?? "—"],
   ];
 
+  const company = await getCompany(sub.company_id);
+  const shell = { name: company.name, footer: companyFooter(company), phone: company.phone };
+
   return (
-    <PortalShell lang={lang} subName={sub.company_name} narrow>
+    <PortalShell company={shell} lang={lang} subName={sub.company_name} narrow>
       <>
         <h1 className="ptitle">{t.myInfo}</h1>
 

@@ -13,6 +13,7 @@ import {
   Bell,
   UserCog,
   UserRound,
+  Building2,
   type LucideIcon,
 } from "lucide-react";
 import { APP, COMPANY, NAV, NAV_SETTINGS } from "@/app/config";
@@ -27,6 +28,7 @@ const ICONS: Record<string, LucideIcon> = {
   bell: Bell,
   "user-cog": UserCog,
   "user-round": UserRound,
+  "building-2": Building2,
 };
 
 function NavLink({

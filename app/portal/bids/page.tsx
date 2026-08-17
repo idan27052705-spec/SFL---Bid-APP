@@ -5,6 +5,7 @@ import { getPortalSub } from "@/lib/portalSession";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { STR, pickLang } from "@/lib/portalStrings";
 import { formatDate, money } from "@/lib/format";
+import { getCompany, companyFooter } from "@/lib/company";
 import PortalShell from "../PortalShell";
 
 export const dynamic = "force-dynamic";
@@ -83,8 +84,11 @@ export default async function PortalBidsPage() {
       ? t.nothingWaiting
       : `${waiting.length} ${waiting.length === 1 ? "bid" : "bids"} ${t.waiting.toLowerCase()}`;
 
+  const company = await getCompany(sub.company_id);
+  const shell = { name: company.name, footer: companyFooter(company), phone: company.phone };
+
   return (
-    <PortalShell lang={lang} subName={sub.company_name}>
+    <PortalShell company={shell} lang={lang} subName={sub.company_name}>
       <>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 20, flexWrap: "wrap" }}>
           <div style={{ marginRight: "auto", minWidth: 0 }}>
