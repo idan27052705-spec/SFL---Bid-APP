@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { STR, type Lang } from "@/lib/portalStrings";
 import { money } from "@/lib/format";
 import FileViewer from "@/components/FileViewer";
+import { createClient } from "@/lib/supabase/client";
 
 type Existing = {
   price: number | null;
@@ -52,14 +53,57 @@ export default function BidActions({
     }
 
     setBusy(true);
+
+    // Attachment goes straight to storage — a phone photo of a quote is
+    // easily over the 4.5 MB a server route can accept.
+    let fileId: string | null = null;
+    const f = fileInput.current?.files?.[0];
+    if (f) {
+      const signRes = await fetch("/api/portal/uploads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bidShortId: shortId, name: f.name, size: f.size }),
+      });
+      const sign = await signRes.json();
+      if (!signRes.ok) {
+        setBusy(false);
+        setError(sign.error || "Couldn't attach that file.");
+        return;
+      }
+
+      const supabase = createClient();
+      const { error: upErr } = await supabase.storage
+        .from("bid-files")
+        .uploadToSignedUrl(sign.path, sign.token, f, { contentType: f.type || undefined });
+
+      if (upErr) {
+        setBusy(false);
+        setError("Couldn't attach that file. Try again.");
+        return;
+      }
+
+      const confirmRes = await fetch("/api/portal/uploads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bidShortId: shortId,
+          path: sign.path,
+          name: f.name,
+          size: f.size,
+          mime: f.type,
+        }),
+      });
+      const confirmed = await confirmRes.json();
+      if (confirmRes.ok) fileId = confirmed.file.id;
+    }
+
     const body = new FormData();
     body.append("price", price);
     body.append("lead", lead);
     body.append("exclusions", exclusions);
     body.append("notes", notes);
     body.append("lang", lang);
-    const f = fileInput.current?.files?.[0];
-    if (f) body.append("file", f);
+    if (fileId) body.append("fileId", fileId);
 
     const res = await fetch(`/api/portal/bids/${shortId}/response`, {
       method: "POST",

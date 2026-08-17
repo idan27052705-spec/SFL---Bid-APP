@@ -8,6 +8,7 @@ import { REMINDER_CADENCES } from "@/app/config";
 import { formatDate } from "@/lib/format";
 import Blueprint from "@/components/Blueprint";
 import FileCollection from "@/components/FileCollection";
+import { uploadFile } from "@/lib/uploadFile";
 
 const MUTED = "color-mix(in srgb, var(--color-text) 55%, transparent)";
 const FAINT = "color-mix(in srgb, var(--color-text) 50%, transparent)";
@@ -87,6 +88,7 @@ export default function BidBuilder({
   const [fileIds, setFileIds] = useState<string[]>(initial?.fileIds ?? []);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [stage, setStage] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
@@ -126,26 +128,28 @@ export default function BidBuilder({
     setUploadError(null);
 
     for (const f of Array.from(list)) {
-      const body = new FormData();
-      body.append("file", f);
-      const res = await fetch(`/api/projects/${projectShortId}/files`, {
-        method: "POST",
-        body,
-      });
+      const result = await uploadFile(f, { projectShortId }, (stage) =>
+        setStage(
+          stage === "converting"
+            ? `Converting ${f.name}…`
+            : stage === "uploading"
+              ? `Uploading ${f.name}…`
+              : "Saving…"
+        )
+      );
 
-      if (!res.ok) {
-        // A failed upload used to vanish silently.
-        const data = await res.json().catch(() => ({}));
-        setUploadError(`${f.name}: ${data.error || "upload failed"}`);
+      if (!result.ok) {
+        setUploadError(`${f.name}: ${result.error}`);
         break;
       }
 
-      const { file } = await res.json();
+      const file = result.file;
       setFiles((prev) => [{ ...file, size_bytes: file.size_bytes ?? null }, ...prev]);
       setFileIds((prev) => [...prev, file.id]);
     }
 
     setUploading(false);
+    setStage(null);
     if (upload.current) upload.current.value = "";
   }
 
@@ -411,7 +415,7 @@ export default function BidBuilder({
               empty="No photos or video yet. Add some and they appear here as thumbnails."
             />
 
-            {uploading && <div style={{ fontSize: 12, color: MUTED, marginTop: 10 }}>Uploading…</div>}
+            {stage && <div style={{ fontSize: 12, color: MUTED, marginTop: 10 }}>{stage}</div>}
           </Blueprint>
         </div>
 
@@ -475,7 +479,7 @@ export default function BidBuilder({
             >
               <FilePlus size={15} /> Add drawing or spec
             </button>
-            {uploading && <div style={{ fontSize: 12, color: MUTED, marginTop: 8 }}>Uploading…</div>}
+            {stage && <div style={{ fontSize: 12, color: MUTED, marginTop: 8 }}>{stage}</div>}
             {uploadError && (
               <div style={{ fontSize: 12, color: "#b3261e", marginTop: 8 }}>{uploadError}</div>
             )}

@@ -167,7 +167,7 @@ export default async function ProjectDetailPage({
     ["County", project.county || "—"],
     ["Address", project.address || "—"],
     ["Start", project.start_date ? formatDate(project.start_date) : "—"],
-    ["Status", project.status],
+    ["Stage", project.status],
     ["Bids", `${bids.length} trade${bids.length === 1 ? "" : "s"}`],
   ];
 

@@ -352,12 +352,12 @@ export default async function BidDetailPage({
             </Blueprint>
 
             <Blueprint style={{ padding: 18 }}>
-              <BidMediaPanel shortId={bid.short_id} media={media} canWrite={canEdit} />
+              <BidMediaPanel shortId={bid.short_id} projectShortId={project?.short_id ?? 0} media={media} canWrite={canEdit} />
             </Blueprint>
             </div>
 
             <Blueprint style={{ padding: 18 }}>
-              <BidFilesPanel shortId={bid.short_id} files={files} canWrite={canEdit} />
+              <BidFilesPanel shortId={bid.short_id} projectShortId={project?.short_id ?? 0} files={files} canWrite={canEdit} />
             </Blueprint>
           </div>
         )}

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getPortalSub } from "@/lib/portalSession";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { STR, pickLang } from "@/lib/portalStrings";
-import { money, fileKind } from "@/lib/format";
+import { money } from "@/lib/format";
 import { wrongOrigin } from "@/lib/guard";
 import { advanceProjectStage } from "@/lib/stage";
 
@@ -62,36 +62,19 @@ export async function POST(
       { status: 400 }
     );
 
-  // Optional attachment — their own quote PDF or a photo of it.
+  // The attachment was uploaded separately (see /api/portal/uploads) and
+  // only its id arrives here. Check it really belongs to this bid before
+  // pinning it to the response.
   let fileId: string | null = null;
-  const upload = form.get("file");
-  if (upload instanceof File && upload.size > 0) {
-    if (upload.size > 25 * 1024 * 1024)
-      return NextResponse.json({ error: "File must be under 25 MB." }, { status: 400 });
-
-    const ext = upload.name.includes(".") ? upload.name.split(".").pop() : "";
-    const path = `${bid.company_id}/responses/${invitation.id}/${crypto.randomUUID()}${ext ? "." + ext : ""}`;
-
-    const { error: upErr } = await admin.storage
-      .from("bid-files")
-      .upload(path, upload, { contentType: upload.type || undefined });
-
-    if (!upErr) {
-      const { data: fileRow } = await admin
-        .from("files")
-        .insert({
-          company_id: bid.company_id,
-          bid_id: bid.id,
-          name: upload.name,
-          storage_path: path,
-          size_bytes: upload.size,
-          mime_type: upload.type || null,
-          kind: fileKind(upload.type, upload.name),
-        })
-        .select("id")
-        .single();
-      fileId = fileRow?.id ?? null;
-    }
+  const claimed = String(form.get("fileId") ?? "");
+  if (claimed) {
+    const { data: file } = await admin
+      .from("files")
+      .select("id")
+      .eq("id", claimed)
+      .eq("bid_id", bid.id)
+      .maybeSingle();
+    fileId = file?.id ?? null;
   }
 
   // One quote per invitation — re-submitting replaces the old one.

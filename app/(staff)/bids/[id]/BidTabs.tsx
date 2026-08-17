@@ -14,6 +14,7 @@ import { REMINDER_CADENCES } from "@/app/config";
 import { money, timeAgo } from "@/lib/format";
 import CommentsModal, { type Comment } from "@/components/CommentsModal";
 import FileCollection from "@/components/FileCollection";
+import { uploadFile } from "@/lib/uploadFile";
 
 const MUTED = "color-mix(in srgb, var(--color-text) 55%, transparent)";
 const FAINT = "color-mix(in srgb, var(--color-text) 50%, transparent)";
@@ -23,10 +24,12 @@ export type BidFile = { id: string; name: string; kind: string; size_bytes?: num
 /* ── Attached files panel, with the three upload buttons ── */
 export function BidFilesPanel({
   shortId,
+  projectShortId,
   files,
   canWrite,
 }: {
   shortId: number;
+  projectShortId: number;
   files: BidFile[];
   canWrite: boolean;
 }) {
@@ -34,6 +37,7 @@ export function BidFilesPanel({
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [stage, setStage] = useState<string | null>(null);
   const docs = files.filter((f) => f.kind === "doc");
 
   /** accept set on the node, not via state — see BidBuilder for why. */
@@ -55,16 +59,18 @@ export function BidFilesPanel({
     setBusy(true);
     setError(null);
     for (const f of Array.from(list)) {
-      const body = new FormData();
-      body.append("file", f);
-      const res = await fetch(`/api/bids/${shortId}/files`, { method: "POST", body });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        setError(`${f.name}: ${d.error || "upload failed"}`);
+      const result = await uploadFile(
+        f,
+        { projectShortId, bidShortId: shortId },
+        (s) => setStage(s === "converting" ? `Converting ${f.name}…` : `Uploading ${f.name}…`)
+      );
+      if (!result.ok) {
+        setError(`${f.name}: ${result.error}`);
         break;
       }
     }
     setBusy(false);
+    setStage(null);
     if (input.current) input.current.value = "";
     router.refresh();
   }
@@ -99,6 +105,7 @@ export function BidFilesPanel({
           >
             <FilePlus size={15} /> Add drawing or spec
           </button>
+          {stage && <div style={{ fontSize: 12, color: MUTED, marginTop: 8 }}>{stage}</div>}
         </>
       )}
 
@@ -109,10 +116,12 @@ export function BidFilesPanel({
 /* ── Photos & video gallery, sits under the pricing lines ── */
 export function BidMediaPanel({
   shortId,
+  projectShortId,
   media,
   canWrite,
 }: {
   shortId: number;
+  projectShortId: number;
   media: BidFile[];
   canWrite: boolean;
 }) {
@@ -120,6 +129,7 @@ export function BidMediaPanel({
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [stage, setStage] = useState<string | null>(null);
 
   const pick = (kind: "photo" | "video") => {
     const el = input.current;
@@ -134,16 +144,18 @@ export function BidMediaPanel({
     setBusy(true);
     setError(null);
     for (const f of Array.from(list)) {
-      const body = new FormData();
-      body.append("file", f);
-      const res = await fetch(`/api/bids/${shortId}/files`, { method: "POST", body });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        setError(`${f.name}: ${d.error || "upload failed"}`);
+      const result = await uploadFile(
+        f,
+        { projectShortId, bidShortId: shortId },
+        (s) => setStage(s === "converting" ? `Converting ${f.name}…` : `Uploading ${f.name}…`)
+      );
+      if (!result.ok) {
+        setError(`${f.name}: ${result.error}`);
         break;
       }
     }
     setBusy(false);
+    setStage(null);
     if (input.current) input.current.value = "";
     router.refresh();
   }
@@ -184,7 +196,7 @@ export function BidMediaPanel({
         empty="No photos or video on this package."
       />
 
-      {busy && <div style={{ fontSize: 12, color: MUTED, marginTop: 10 }}>Uploading…</div>}
+      {stage && <div style={{ fontSize: 12, color: MUTED, marginTop: 10 }}>{stage}</div>}
       {error && <div style={{ fontSize: 12, color: "#b3261e", marginTop: 10 }}>{error}</div>}
     </>
   );

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FileText, Image as ImageIcon, Video } from "lucide-react";
 import { formatBytes, timeAgo } from "@/lib/format";
 import FileViewer from "@/components/FileViewer";
+import { uploadFile } from "@/lib/uploadFile";
 
 export type FileRow = {
   id: string;
@@ -29,6 +30,7 @@ export default function ProjectFiles({
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [stage, setStage] = useState<string | null>(null);
   const [viewing, setViewing] = useState<number | null>(null);
 
   async function upload(list: FileList | null) {
@@ -37,18 +39,15 @@ export default function ProjectFiles({
     setBusy(true);
 
     for (const file of Array.from(list)) {
-      const body = new FormData();
-      body.append("file", file);
-      const res = await fetch(`/api/projects/${shortId}/files`, {
-        method: "POST",
-        body,
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(`${file.name}: ${data.error || "Upload failed."}`);
+      const result = await uploadFile(file, { projectShortId: shortId }, (s) =>
+        setStage(s === "converting" ? `Converting ${file.name}…` : `Uploading ${file.name}…`)
+      );
+      if (!result.ok) {
+        setError(`${file.name}: ${result.error}`);
         break;
       }
     }
+    setStage(null);
 
     setBusy(false);
     if (input.current) input.current.value = "";
@@ -85,7 +84,7 @@ export default function ProjectFiles({
             {busy ? "Uploading…" : "Upload files"}
           </button>
           <span className="text-muted" style={{ fontSize: 12, marginLeft: 10 }}>
-            Drawings, specs, site photos or walkthrough video. Up to 50 MB each.
+            {stage ?? "Drawings, specs, site photos or walkthrough video."}
           </span>
         </div>
       )}

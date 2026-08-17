@@ -131,7 +131,7 @@ export default function ProjectsClient({
                   <th>Type</th>
                   <th>Start</th>
                   <th>Bids</th>
-                  <th>Status</th>
+                  <th>Stage</th>
                 </tr>
               </thead>
               <tbody>
