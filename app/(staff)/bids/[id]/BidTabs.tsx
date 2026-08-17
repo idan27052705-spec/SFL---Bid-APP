@@ -15,13 +15,14 @@ import { REMINDER_CADENCES } from "@/app/config";
 import { money, timeAgo } from "@/lib/format";
 import FileViewer from "@/components/FileViewer";
 import CommentsModal, { type Comment } from "@/components/CommentsModal";
+import MediaGallery from "@/components/MediaGallery";
 
 const MUTED = "color-mix(in srgb, var(--color-text) 55%, transparent)";
 const FAINT = "color-mix(in srgb, var(--color-text) 50%, transparent)";
 const HAIR = "1px solid color-mix(in srgb, var(--color-text) 8%, transparent)";
 const ICON = { doc: FileText, photo: ImageIcon, video: Video } as const;
 
-export type BidFile = { id: string; name: string; kind: string };
+export type BidFile = { id: string; name: string; kind: string; size_bytes?: number | null };
 
 /* ── Attached files panel, with the three upload buttons ── */
 export function BidFilesPanel({
@@ -35,16 +36,24 @@ export function BidFilesPanel({
 }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
-  const [accept, setAccept] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [viewing, setViewing] = useState<number | null>(null);
 
+  const docs = files.filter((f) => f.kind === "doc");
+
+  /** accept set on the node, not via state — see BidBuilder for why. */
   const pick = (kind: "doc" | "photo" | "video") => {
-    setAccept(
-      kind === "photo" ? "image/*" : kind === "video" ? "video/*" : ".pdf,.dwg,.xlsx,.doc,.docx"
-    );
-    setTimeout(() => input.current?.click(), 0);
+    const el = input.current;
+    if (!el) return;
+    el.accept =
+      kind === "photo"
+        ? "image/*"
+        : kind === "video"
+          ? "video/*"
+          : ".pdf,.dwg,.dxf,.xls,.xlsx,.doc,.docx,.csv,.txt,application/pdf";
+    el.value = "";
+    el.click();
   };
 
   async function upload(list: FileList | null) {
@@ -68,15 +77,15 @@ export function BidFilesPanel({
 
   return (
     <>
-      <h4 style={{ margin: "0 0 10px" }}>Attached to this bid</h4>
+      <h4 style={{ margin: "0 0 10px" }}>Drawings &amp; specs</h4>
 
-      {files.length === 0 && (
+      {docs.length === 0 && (
         <p style={{ fontSize: 13, color: MUTED, margin: 0 }}>
-          Nothing attached yet. Subs see whatever you put here.
+          No drawings attached yet. Subs see whatever you put here.
         </p>
       )}
 
-      {files.map((f) => {
+      {docs.map((f) => {
         const Icon = ICON[f.kind as keyof typeof ICON] ?? FileText;
         return (
           <div
@@ -87,7 +96,7 @@ export function BidFilesPanel({
             <div style={{ flex: 1, minWidth: 0, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis" }}>
               {f.name}
             </div>
-            <button className="btn btn-ghost" onClick={() => setViewing(files.indexOf(f))}>
+            <button className="btn btn-ghost" onClick={() => setViewing(docs.indexOf(f))}>
               Open
             </button>
           </div>
@@ -102,27 +111,100 @@ export function BidFilesPanel({
             ref={input}
             type="file"
             multiple
-            accept={accept}
             style={{ display: "none" }}
             onChange={(e) => upload(e.target.files)}
           />
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <button className="btn btn-secondary" style={{ flex: 1 }} disabled={busy} onClick={() => pick("doc")}>
-              <FilePlus size={15} /> Drawing
-            </button>
-            <button className="btn btn-secondary" style={{ flex: 1 }} disabled={busy} onClick={() => pick("photo")}>
-              <ImageIcon size={15} /> Photo
-            </button>
-            <button className="btn btn-secondary" style={{ flex: 1 }} disabled={busy} onClick={() => pick("video")}>
-              <Video size={15} /> Video
-            </button>
-          </div>
+          <button
+            className="btn btn-secondary btn-block"
+            disabled={busy}
+            onClick={() => pick("doc")}
+          >
+            <FilePlus size={15} /> Add drawing or spec
+          </button>
         </>
       )}
 
       {viewing !== null && (
-        <FileViewer files={files} index={viewing} onClose={() => setViewing(null)} />
+        <FileViewer files={docs} index={viewing} onClose={() => setViewing(null)} />
       )}
+    </>
+  );
+}
+
+/* ── Photos & video gallery, sits under the pricing lines ── */
+export function BidMediaPanel({
+  shortId,
+  media,
+  canWrite,
+}: {
+  shortId: number;
+  media: BidFile[];
+  canWrite: boolean;
+}) {
+  const router = useRouter();
+  const input = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const pick = (kind: "photo" | "video") => {
+    const el = input.current;
+    if (!el) return;
+    el.accept = kind === "photo" ? "image/*" : "video/*";
+    el.value = "";
+    el.click();
+  };
+
+  async function upload(list: FileList | null) {
+    if (!list?.length) return;
+    setBusy(true);
+    setError(null);
+    for (const f of Array.from(list)) {
+      const body = new FormData();
+      body.append("file", f);
+      const res = await fetch(`/api/bids/${shortId}/files`, { method: "POST", body });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setError(`${f.name}: ${d.error || "upload failed"}`);
+        break;
+      }
+    }
+    setBusy(false);
+    if (input.current) input.current.value = "";
+    router.refresh();
+  }
+
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6, flexWrap: "wrap" }}>
+        <h4 style={{ margin: 0 }}>Photos &amp; video</h4>
+        {canWrite && (
+          <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
+            <button className="btn btn-secondary" disabled={busy} onClick={() => pick("photo")}>
+              <ImageIcon size={15} /> Photo
+            </button>
+            <button className="btn btn-secondary" disabled={busy} onClick={() => pick("video")}>
+              <Video size={15} /> Video
+            </button>
+          </div>
+        )}
+      </div>
+      <div style={{ fontSize: 12, color: MUTED, marginBottom: 12 }}>
+        What the site actually looks like. Saves a sub a trip when they price
+        from a phone.
+      </div>
+
+      <input
+        ref={input}
+        type="file"
+        multiple
+        style={{ display: "none" }}
+        onChange={(e) => upload(e.target.files)}
+      />
+
+      <MediaGallery files={media} empty="No photos or video on this package." />
+
+      {busy && <div style={{ fontSize: 12, color: MUTED, marginTop: 10 }}>Uploading…</div>}
+      {error && <div style={{ fontSize: 12, color: "#b3261e", marginTop: 10 }}>{error}</div>}
     </>
   );
 }

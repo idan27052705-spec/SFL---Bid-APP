@@ -11,6 +11,7 @@ import type { Comment } from "@/components/CommentsModal";
 import SendAllButton from "./SendAllButton";
 import {
   BidFilesPanel,
+  BidMediaPanel,
   CadenceBar,
   InvitationsTable,
   ResponseCards,
@@ -75,7 +76,7 @@ export default async function BidDetailPage({
         .order("position"),
       supabase
         .from("bid_files")
-        .select("files(id, name, kind)")
+        .select("files(id, name, kind, size_bytes)")
         .eq("bid_id", bid.id)
         .order("position"),
       supabase
@@ -95,6 +96,10 @@ export default async function BidDetailPage({
   const files = ((attached ?? []) as unknown as { files: BidFile | null }[])
     .map((a) => a.files)
     .filter(Boolean) as BidFile[];
+
+  // Drawings live in the side panel; photos and video get their own
+  // gallery under the pricing lines.
+  const media = files.filter((f) => f.kind === "photo" || f.kind === "video");
 
   type Row = {
     id: string;
@@ -251,6 +256,7 @@ export default async function BidDetailPage({
               alignItems: "start",
             }}
           >
+            <div style={{ display: "flex", flexDirection: "column", gap: 26, minWidth: 0 }}>
             <Blueprint style={{ padding: 18 }}>
               <h4 style={{ margin: "0 0 10px" }}>Scope of work</h4>
               <div style={{ fontSize: 14, maxWidth: "70ch", whiteSpace: "pre-line", textWrap: "pretty" }}>
@@ -344,6 +350,11 @@ export default async function BidDetailPage({
                 ))}
               </div>
             </Blueprint>
+
+            <Blueprint style={{ padding: 18 }}>
+              <BidMediaPanel shortId={bid.short_id} media={media} canWrite={canEdit} />
+            </Blueprint>
+            </div>
 
             <Blueprint style={{ padding: 18 }}>
               <BidFilesPanel shortId={bid.short_id} files={files} canWrite={canEdit} />

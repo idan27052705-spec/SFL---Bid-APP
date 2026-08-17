@@ -7,6 +7,7 @@ import { X, Plus, FilePlus, Image as ImageIcon, Video, FileText } from "lucide-r
 import { REMINDER_CADENCES } from "@/app/config";
 import { formatDate } from "@/lib/format";
 import Blueprint from "@/components/Blueprint";
+import MediaGallery from "@/components/MediaGallery";
 
 const MUTED = "color-mix(in srgb, var(--color-text) 55%, transparent)";
 const FAINT = "color-mix(in srgb, var(--color-text) 50%, transparent)";
@@ -84,8 +85,8 @@ export default function BidBuilder({
   );
   const [files, setFiles] = useState<BuilderFile[]>(projectFiles);
   const [fileIds, setFileIds] = useState<string[]>(initial?.fileIds ?? []);
-  const [accept, setAccept] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
@@ -93,18 +94,37 @@ export default function BidBuilder({
     setItems((list) => list.map((i) => (i.key === key ? { ...i, [field]: value } : i)));
 
   const attached = files.filter((f) => fileIds.includes(f.id));
+  const attachedDocs = attached.filter((f) => f.kind === "doc");
+  const attachedMedia = attached.filter((f) => f.kind === "photo" || f.kind === "video");
   const unattached = files.filter((f) => !fileIds.includes(f.id));
+  const detach = (id: string) => setFileIds((p) => p.filter((x) => x !== id));
 
+  /**
+   * Set `accept` straight on the DOM node, then click.
+   *
+   * This used to go through React state with a setTimeout(0) click — the
+   * click fired before React re-rendered, so the input still carried the
+   * PREVIOUS filter. Click Photo then Drawing and every PDF was greyed
+   * out in the file picker.
+   */
   const pick = (kind: "doc" | "photo" | "video") => {
-    setAccept(
-      kind === "photo" ? "image/*" : kind === "video" ? "video/*" : ".pdf,.dwg,.xlsx,.doc,.docx"
-    );
-    setTimeout(() => upload.current?.click(), 0);
+    const el = upload.current;
+    if (!el) return;
+    el.accept =
+      kind === "photo"
+        ? "image/*"
+        : kind === "video"
+          ? "video/*"
+          : ".pdf,.dwg,.dxf,.xls,.xlsx,.doc,.docx,.csv,.txt,application/pdf";
+    el.value = "";
+    el.click();
   };
 
   async function onUpload(list: FileList | null) {
     if (!list?.length) return;
     setUploading(true);
+    setUploadError(null);
+
     for (const f of Array.from(list)) {
       const body = new FormData();
       body.append("file", f);
@@ -112,12 +132,19 @@ export default function BidBuilder({
         method: "POST",
         body,
       });
-      if (res.ok) {
-        const { file } = await res.json();
-        setFiles((prev) => [{ ...file, size_bytes: file.size_bytes ?? null }, ...prev]);
-        setFileIds((prev) => [...prev, file.id]);
+
+      if (!res.ok) {
+        // A failed upload used to vanish silently.
+        const data = await res.json().catch(() => ({}));
+        setUploadError(`${f.name}: ${data.error || "upload failed"}`);
+        break;
       }
+
+      const { file } = await res.json();
+      setFiles((prev) => [{ ...file, size_bytes: file.size_bytes ?? null }, ...prev]);
+      setFileIds((prev) => [...prev, file.id]);
     }
+
     setUploading(false);
     if (upload.current) upload.current.value = "";
   }
@@ -357,18 +384,50 @@ export default function BidBuilder({
               </div>
             ))}
           </Blueprint>
+
+          <Blueprint style={{ padding: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6, flexWrap: "wrap" }}>
+              <h4 style={{ margin: 0 }}>Photos &amp; video</h4>
+              <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
+                <button className="btn btn-secondary" disabled={uploading} onClick={() => pick("photo")}>
+                  <ImageIcon size={15} /> Photo
+                </button>
+                <button className="btn btn-secondary" disabled={uploading} onClick={() => pick("video")}>
+                  <Video size={15} /> Video
+                </button>
+              </div>
+            </div>
+            <div style={{ fontSize: 12, color: MUTED, marginBottom: 12 }}>
+              Site photos and a walkthrough video save a trip for subs pricing
+              from a phone.
+            </div>
+
+            <MediaGallery
+              files={attachedMedia}
+              onRemove={detach}
+              empty="No photos or video yet. Add some and they appear here as thumbnails."
+            />
+
+            {uploading && <div style={{ fontSize: 12, color: MUTED, marginTop: 10 }}>Uploading…</div>}
+          </Blueprint>
         </div>
 
         {/* ── right column ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
           <Blueprint style={{ padding: 18 }}>
-            <h4 style={{ margin: "0 0 4px" }}>Drawings, photos &amp; video</h4>
+            <h4 style={{ margin: "0 0 4px" }}>Drawings &amp; specs</h4>
             <div style={{ fontSize: 12, color: MUTED, marginBottom: 6 }}>
-              Site photos and a walkthrough video save a trip for subs pricing
-              from a phone.
+              Plan sets, specifications, schedules. Photos and video go in
+              their own gallery under the pricing lines.
             </div>
 
-            {attached.map((f) => {
+            {attachedDocs.length === 0 && (
+              <p style={{ fontSize: 13, color: MUTED, margin: "8px 0 0" }}>
+                Nothing attached yet.
+              </p>
+            )}
+
+            {attachedDocs.map((f) => {
               const Icon = ICON[f.kind as keyof typeof ICON] ?? FileText;
               return (
                 <div key={f.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "9px 0", borderTop: HAIR }}>
@@ -376,10 +435,7 @@ export default function BidBuilder({
                   <div style={{ flex: 1, minWidth: 0, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis" }}>
                     {f.name}
                   </div>
-                  <button
-                    className="btn btn-ghost"
-                    onClick={() => setFileIds((p) => p.filter((x) => x !== f.id))}
-                  >
+                  <button className="btn btn-ghost" onClick={() => detach(f.id)}>
                     Remove
                   </button>
                 </div>
@@ -406,22 +462,20 @@ export default function BidBuilder({
               ref={upload}
               type="file"
               multiple
-              accept={accept}
               style={{ display: "none" }}
               onChange={(e) => onUpload(e.target.files)}
             />
-            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-              <button className="btn btn-secondary" style={{ flex: 1 }} disabled={uploading} onClick={() => pick("doc")}>
-                <FilePlus size={15} /> Drawing
-              </button>
-              <button className="btn btn-secondary" style={{ flex: 1 }} disabled={uploading} onClick={() => pick("photo")}>
-                <ImageIcon size={15} /> Photo
-              </button>
-              <button className="btn btn-secondary" style={{ flex: 1 }} disabled={uploading} onClick={() => pick("video")}>
-                <Video size={15} /> Video
-              </button>
-            </div>
+            <button
+              className="btn btn-secondary btn-block"
+              disabled={uploading}
+              onClick={() => pick("doc")}
+            >
+              <FilePlus size={15} /> Add drawing or spec
+            </button>
             {uploading && <div style={{ fontSize: 12, color: MUTED, marginTop: 8 }}>Uploading…</div>}
+            {uploadError && (
+              <div style={{ fontSize: 12, color: "#b3261e", marginTop: 8 }}>{uploadError}</div>
+            )}
           </Blueprint>
 
           <Blueprint style={{ padding: 18 }}>
