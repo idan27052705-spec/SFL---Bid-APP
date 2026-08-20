@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Plus, Pencil } from "lucide-react";
 import Blueprint from "@/components/Blueprint";
 import SubModal, { type Trade, type EditableSub } from "./SubModal";
+import FilterMenu from "@/components/FilterMenu";
 
 const MUTED = "color-mix(in srgb, var(--color-text) 55%, transparent)";
 const FAINT = "color-mix(in srgb, var(--color-text) 50%, transparent)";
@@ -35,23 +36,23 @@ export default function SubsClient({
   canWrite: boolean;
 }) {
   const [search, setSearch] = useState("");
-  const [trade, setTrade] = useState("All");
+  const [tradeFilter, setTradeFilter] = useState<string[]>([]);
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<EditableSub | null>(null);
 
   const rows = useMemo(() => {
     const s = search.trim().toLowerCase();
     return subs.filter((x) => {
-      if (trade !== "All" && !x.trades.includes(trade)) return false;
+      // No trades ticked means no trade filter at all.
+      if (tradeFilter.length && !x.trades.some((t) => tradeFilter.includes(t)))
+        return false;
       if (!s) return true;
       return [x.company, x.contact, x.city, x.trades.join(" ")]
         .join(" ")
         .toLowerCase()
         .includes(s);
     });
-  }, [subs, search, trade]);
-
-  const filters = ["All", ...trades.map((t) => t.name)];
+  }, [subs, search, tradeFilter]);
 
   return (
     <>
@@ -82,22 +83,26 @@ export default function SubsClient({
       </header>
 
       <div className="pagebody" style={{ padding: "26px 28px 40px" }}>
-        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-          {filters.map((f) => (
-            <button
-              key={f}
-              className="btn btn-secondary"
-              style={{
-                fontSize: 12,
-                padding: "4px 10px",
-                background:
-                  trade === f ? "color-mix(in srgb, var(--color-accent) 16%, transparent)" : "transparent",
-              }}
-              onClick={() => setTrade(f)}
-            >
-              {f}
-            </button>
-          ))}
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            marginBottom: 14,
+            flexWrap: "wrap",
+            alignItems: "center",
+          }}
+        >
+          <FilterMenu
+            label="Trades"
+            title="Filter by trade"
+            options={trades.map((t) => ({ id: t.name, label: t.name }))}
+            selected={tradeFilter}
+            onChange={setTradeFilter}
+          />
+
+          <span style={{ fontSize: 12, color: MUTED }}>
+            {rows.length} of {subs.length} shown
+          </span>
         </div>
 
         <Blueprint style={{ padding: "12px 18px 6px" }}>

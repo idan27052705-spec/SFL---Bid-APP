@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowRight, Pencil } from "lucide-react";
 import { BID_STATUSES } from "@/app/config";
 import { formatDateShort, money } from "@/lib/format";
@@ -33,6 +34,7 @@ export default function BidsClient({
   bids: BidRow[];
   canWrite: boolean;
 }) {
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("All");
 
@@ -133,7 +135,17 @@ export default function BidsClient({
               </thead>
               <tbody>
                 {rows.map((b) => (
-                  <tr key={b.id}>
+                  <tr
+                    key={b.id}
+                    className="clickrow"
+                    onClick={(e) => {
+                      // Anywhere in the row opens the bid — except the things
+                      // that already do something of their own.
+                      if ((e.target as HTMLElement).closest("a, button, input, select"))
+                        return;
+                      router.push(`/bids/${b.short_id}`);
+                    }}
+                  >
                     <td>
                       <Link className="rowlink" href={`/bids/${b.short_id}`}>
                         <strong>{b.project}</strong>
