@@ -33,6 +33,7 @@ export const NAV = [
   { key: "projects", label: "Projects", icon: "folder", href: "/projects" },
   { key: "bids", label: "Bids", icon: "file-text", href: "/bids" },
   { key: "subs", label: "Subs", icon: "users", href: "/subs" },
+  { key: "payments", label: "Schedule Payments", icon: "banknote", href: "/payments" },
 ] as const;
 
 export const NAV_SETTINGS = [
@@ -103,6 +104,7 @@ export const INVITATION_STATUSES = [
   "No Response",
   "Expired",
 ] as const;
+
 
 export const REMINDER_CADENCES = [
   "Off",

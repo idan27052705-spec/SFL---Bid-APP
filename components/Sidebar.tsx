@@ -14,6 +14,7 @@ import {
   UserCog,
   UserRound,
   Building2,
+  Banknote,
   type LucideIcon,
 } from "lucide-react";
 import { APP, COMPANY, NAV, NAV_SETTINGS } from "@/app/config";
@@ -29,6 +30,7 @@ const ICONS: Record<string, LucideIcon> = {
   "user-cog": UserCog,
   "user-round": UserRound,
   "building-2": Building2,
+  banknote: Banknote,
 };
 
 function NavLink({
