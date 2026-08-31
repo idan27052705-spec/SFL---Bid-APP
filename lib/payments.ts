@@ -13,10 +13,20 @@ export type Project = { id: string; name: string };
 
 /** Proof that a payment actually went out — usually a pasted screenshot. */
 export type ProofFile = {
+  /**
+   * The payment_proofs row, once the file is stored. Absent while the file
+   * is still only in the browser — a screenshot that has been pasted into
+   * the mark-paid dialog but not yet saved has nothing to point at.
+   */
+  id?: string;
   name: string;
   sizeBytes: number;
   type: string;
-  /** Object URL. Lives for this browser session only; a real upload replaces it. */
+  /**
+   * Where to read the file. An object URL while it is only in the browser;
+   * once stored, the route that hands back a signed URL for it — the
+   * bucket is private, so there is never a link straight to the object.
+   */
   url: string;
 };
 
