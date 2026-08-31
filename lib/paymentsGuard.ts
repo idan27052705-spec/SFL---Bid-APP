@@ -120,34 +120,3 @@ export const editClearsRejection = ({
 /** Only whoever handles the money pays a row, sends it back, or reopens a week. */
 export const isPaymentsAdmin = (paymentsRole: PaymentsRole) =>
   paymentsRole === "admin";
-
-export type EditContext = {
-  row: PaymentRow;
-  /** The signed-in user's PM id. */
-  meId: string;
-  isOwner: boolean;
-  canWrite: boolean;
-  /** Has this row's PM handed in the week it belongs to? */
-  weekSubmitted: boolean;
-};
-
-/**
- * The screen-side spelling of `canChangeRow`, taking a whole `PaymentRow`
- * and the owner flag the pages already hold. Kept so the screens read the
- * same rule the routes enforce, from the same file.
- */
-export function canEditRow({
-  row,
-  meId,
-  isOwner,
-  canWrite,
-  weekSubmitted,
-}: EditContext): boolean {
-  return canChangeRow({
-    row: rowFacts(row),
-    meId,
-    paymentsRole: isOwner ? "admin" : "pm",
-    canWrite,
-    weekSubmitted,
-  });
-}

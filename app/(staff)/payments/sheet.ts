@@ -42,3 +42,13 @@ export const FAINT = "color-mix(in srgb, var(--color-text) 45%, transparent)";
 export const DANGER = "#b3261e";
 /** The same red as a wash, for a chip that has to carry it as a background. */
 export const DANGER_TINT = `color-mix(in srgb, ${DANGER} 14%, transparent)`;
+
+/**
+ * What a refused save looks like: one red line where the person is
+ * looking, in the dialog that asked. Never a swallowed error, and never
+ * an alert() — the sentence the server sent is the whole message.
+ */
+export const errorLine: React.CSSProperties = {
+  fontSize: 13,
+  color: DANGER,
+};

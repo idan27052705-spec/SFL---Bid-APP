@@ -17,6 +17,7 @@ import { DANGER, MUTED, cell, headCell, numCell } from "./sheet";
 import { usePayments } from "./PaymentsProvider";
 import { today } from "@/lib/dates";
 import { isWeekSubmitted, latePms, paymentState } from "@/lib/payments";
+import { isPaymentsAdmin } from "@/lib/paymentsGuard";
 
 /** Two weeks ahead is enough to get a jump on a holiday week. */
 const AHEAD = 2;
@@ -46,8 +47,11 @@ const stickyHead: React.CSSProperties = {
  * longer and longer as the years go by.
  */
 export default function WeeksIndex() {
-  const { rows, submissions, pms, isFinance } = usePayments();
+  const { rows, submissions, pms, paymentsRole } = usePayments();
   const router = useRouter();
+
+  /** Only whoever handles the money has a queue to open. */
+  const isAdmin = isPaymentsAdmin(paymentsRole);
 
   const current = defaultWeekStart();
   /** One clock for the whole list, so every row is judged against the same day. */
@@ -91,7 +95,7 @@ export default function WeeksIndex() {
           </div>
         </div>
 
-        {isFinance && (
+        {isAdmin && (
           <Link className="btn btn-secondary" href="/payments/approvals">
             <Wallet size={15} /> Approvals
             {waiting > 0 && (

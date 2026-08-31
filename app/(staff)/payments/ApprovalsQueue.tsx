@@ -6,8 +6,6 @@ import {
   AlarmClock,
   ArrowLeft,
   Check,
-  FileText,
-  ImageIcon,
   LockOpen,
   Paperclip,
   Undo2,
@@ -15,8 +13,9 @@ import {
 } from "lucide-react";
 import Blueprint from "@/components/Blueprint";
 import MarkPaidModal from "./MarkPaidModal";
+import ProofLink from "./ProofLink";
 import RejectModal from "./RejectModal";
-import { usePayments, type PaidDetails } from "./PaymentsProvider";
+import { errorMessage, usePayments } from "./PaymentsProvider";
 import {
   SortHeader,
   dayKey,
@@ -25,7 +24,8 @@ import {
   type Sort,
   type SortKey,
 } from "./sorting";
-import { DANGER, MUTED, cell, headCell, numCell } from "./sheet";
+import { DANGER, MUTED, cell, errorLine, headCell, numCell } from "./sheet";
+import { isPaymentsAdmin } from "@/lib/paymentsGuard";
 import { money } from "@/lib/format";
 import { formatDate, timeAgo } from "@/lib/format";
 import { dueLabel, today } from "@/lib/dates";
@@ -75,7 +75,7 @@ export default function ApprovalsQueue() {
     rows,
     submissions,
     reopenRequests,
-    isFinance,
+    paymentsRole,
     markPaid,
     rejectRow,
     resolveReopenRequest,
@@ -84,6 +84,12 @@ export default function ApprovalsQueue() {
   const [sort, setSort] = useState<Sort>({ key: "date", dir: "asc" });
   const [paying, setPaying] = useState<PaymentRow | null>(null);
   const [rejecting, setRejecting] = useState<PaymentRow | null>(null);
+
+  /** The request being answered, so both its buttons go quiet at once. */
+  const [deciding, setDeciding] = useState<string | null>(null);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
+
+  const isAdmin = isPaymentsAdmin(paymentsRole);
 
   const stateOf = (r: PaymentRow) =>
     paymentState(r, isWeekSubmitted(submissions, r.pmId, r.weekStart));
@@ -153,7 +159,20 @@ export default function ApprovalsQueue() {
 
   const onSort = (key: SortKey) => setSort((s) => nextSort(s, key));
 
-  if (!isFinance) {
+  /** Answering one ask. Both buttons wait for it, and say so if it fails. */
+  async function decide(id: string, approved: boolean) {
+    setDeciding(id);
+    setDecisionError(null);
+    try {
+      await resolveReopenRequest(id, approved);
+    } catch (e) {
+      setDecisionError(errorMessage(e));
+    } finally {
+      setDeciding(null);
+    }
+  }
+
+  if (!isAdmin) {
     return (
       <div className="pagebody" style={{ padding: "40px 28px" }}>
         <h1 style={{ fontSize: 24, margin: "0 0 6px" }}>Approvals</h1>
@@ -324,27 +343,9 @@ export default function ApprovalsQueue() {
       );
     return (
       <div style={{ display: "grid", gap: 3 }}>
-        {files.map((file) => {
-          const Icon = file.type.startsWith("image/") ? ImageIcon : FileText;
-          return (
-            <a
-              key={file.url}
-              className="rowlink"
-              href={file.url}
-              target="_blank"
-              rel="noreferrer"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5,
-                fontSize: 12,
-              }}
-              title={file.name}
-            >
-              <Icon size={13} /> View
-            </a>
-          );
-        })}
+        {files.map((file) => (
+          <ProofLink key={file.id ?? file.url} file={file} label="View" />
+        ))}
       </div>
     );
   };
@@ -439,14 +440,17 @@ export default function ApprovalsQueue() {
                         >
                           <button
                             className="btn btn-primary"
-                            onClick={() => resolveReopenRequest(req.id, true)}
+                            onClick={() => decide(req.id, true)}
+                            disabled={deciding === req.id}
                             title="Drop the week back to draft so they can edit and submit it again"
                           >
-                            <LockOpen size={14} /> Approve &amp; reopen
+                            <LockOpen size={14} />{" "}
+                            {deciding === req.id ? "Working…" : "Approve & reopen"}
                           </button>{" "}
                           <button
                             className="btn btn-ghost"
-                            onClick={() => resolveReopenRequest(req.id, false)}
+                            onClick={() => decide(req.id, false)}
+                            disabled={deciding === req.id}
                             title="Leave the week submitted"
                           >
                             Decline
@@ -457,6 +461,10 @@ export default function ApprovalsQueue() {
                   </tbody>
                 </table>
               </div>
+
+              {decisionError && (
+                <div style={{ ...errorLine, marginTop: 8 }}>{decisionError}</div>
+              )}
             </Blueprint>
           </section>
         )}
@@ -605,7 +613,7 @@ export default function ApprovalsQueue() {
       {paying && (
         <MarkPaidModal
           payment={paying}
-          onConfirm={(details: PaidDetails) => markPaid(paying.id, details)}
+          onConfirm={(details) => markPaid(paying.id, details)}
           onClose={() => setPaying(null)}
         />
       )}

@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Modal, { ModalField } from "@/components/Modal";
 import SelectField from "./SelectField";
+import { errorLine } from "./sheet";
+import { errorMessage, type PaymentDraft } from "./PaymentsProvider";
 import { dayLabel, weekDays } from "@/lib/weeks";
 import type { PM, PaymentRow, Project } from "@/lib/payments";
 
@@ -39,7 +41,8 @@ export default function PaymentModal({
   me: PM;
   canPickPm: boolean;
   payment?: PaymentRow;
-  onSave: (row: PaymentRow) => void;
+  /** Saves it. Throws with the server's words if the save is refused. */
+  onSave: (draft: PaymentDraft) => Promise<void>;
   onClose: () => void;
 }) {
   const editing = !!payment;
@@ -54,6 +57,8 @@ export default function PaymentModal({
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [added, setAdded] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
 
   const clear = (key: string) =>
     setErrors((e) => {
@@ -75,10 +80,14 @@ export default function PaymentModal({
     return Object.keys(next).length === 0;
   }
 
-  function rowFrom(id: string): PaymentRow {
+  /**
+   * What was typed, as the API takes it. An id means the row already
+   * exists; without one this is a new payment.
+   */
+  function draftFrom(id?: string): PaymentDraft {
     const typed = projectName.trim();
     // Keep the link to the real project when the typed name matches one we
-    // know, so wiring this to the database later doesn't lose it.
+    // know, so a payment that names a project of ours stays attached to it.
     const known = projects.find(
       (p) => p.name.toLowerCase() === typed.toLowerCase()
     );
@@ -91,7 +100,6 @@ export default function PaymentModal({
       // its own — not a blank waiting to be filled in.
       date: date || null,
       pmId: pm.id,
-      pmName: pm.name,
       projectId: known?.id ?? null,
       projectName: known?.name ?? typed,
       payTo: payTo.trim(),
@@ -100,18 +108,30 @@ export default function PaymentModal({
     };
   }
 
-  const newId = () => `new-${pmId}-${date || "any"}-${Date.now()}-${added}`;
+  /** Saves, and says so if the server refused — never closes on a failure. */
+  async function commit(draft: PaymentDraft): Promise<boolean> {
+    setBusy(true);
+    setFailed(null);
+    try {
+      await onSave(draft);
+      return true;
+    } catch (e) {
+      setFailed(errorMessage(e));
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
 
-  function save() {
+  async function save() {
     if (!validate()) return;
-    onSave(rowFrom(payment?.id ?? newId()));
-    onClose();
+    if (await commit(draftFrom(payment?.id))) onClose();
   }
 
   /** Keeps the project and the day; clears what changes payment to payment. */
-  function saveAndAddAnother() {
+  async function saveAndAddAnother() {
     if (!validate()) return;
-    onSave(rowFrom(newId()));
+    if (!(await commit(draftFrom()))) return;
     setPayTo("");
     setReason("");
     setAmount("");
@@ -128,20 +148,24 @@ export default function PaymentModal({
           ? `${added} payment${added === 1 ? "" : "s"} added — project and day kept`
           : "Expected payment for this week"
       }
-      onClose={onClose}
+      onClose={busy ? () => {} : onClose}
       width={560}
       footer={
         <>
-          <button className="btn btn-secondary" onClick={onClose}>
+          <button className="btn btn-secondary" onClick={onClose} disabled={busy}>
             Cancel
           </button>
           {!editing && (
-            <button className="btn btn-secondary" onClick={saveAndAddAnother}>
+            <button
+              className="btn btn-secondary"
+              onClick={saveAndAddAnother}
+              disabled={busy}
+            >
               Save &amp; add another
             </button>
           )}
-          <button className="btn btn-primary" onClick={save}>
-            {editing ? "Save changes" : "Save"}
+          <button className="btn btn-primary" onClick={save} disabled={busy}>
+            {busy ? "Saving…" : editing ? "Save changes" : "Save"}
           </button>
         </>
       }
@@ -221,6 +245,8 @@ export default function PaymentModal({
           }))}
         />
       )}
+
+      {failed && <div style={errorLine}>{failed}</div>}
     </Modal>
   );
 }

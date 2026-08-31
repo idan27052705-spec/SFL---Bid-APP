@@ -4,16 +4,27 @@ import { useEffect, useRef, useState } from "react";
 import { Clipboard, FileText, Trash2 } from "lucide-react";
 import Modal, { ModalField } from "@/components/Modal";
 import SelectField from "./SelectField";
+import { createClient } from "@/lib/supabase/client";
 import { money, formatBytes } from "@/lib/format";
 import { today } from "@/lib/dates";
-import { MUTED } from "./sheet";
+import { DANGER, MUTED, errorLine } from "./sheet";
+import { errorMessage, type PaidDetails, type StoredProof } from "./PaymentsProvider";
 import {
   PAYMENT_METHODS,
   dayOrAny,
   type PaymentMethod,
   type PaymentRow,
-  type ProofFile,
 } from "@/lib/payments";
+
+/** A file waiting to be uploaded — the bytes, and the preview showing them. */
+type Attachment = {
+  file: File;
+  name: string;
+  sizeBytes: number;
+  type: string;
+  /** An object URL: the thumbnail, and the View link, until it is saved. */
+  url: string;
+};
 
 /** A pasted screenshot usually arrives with no useful name of its own. */
 function nameFor(file: File, row: PaymentRow): string {
@@ -56,6 +67,11 @@ function uniqueName(name: string, taken: string[]): string {
  * confirmation and the invoice it settles, and losing the first attachment
  * to the second is the kind of thing nobody notices until the row is being
  * queried months later.
+ *
+ * Confirming is three steps, in this order: every file's bytes go straight
+ * from the browser to storage with a signed URL, and only then is the row
+ * marked paid with the paths they landed on. The bytes never pass through
+ * our server — see /api/payments/proofs/sign.
  */
 export default function MarkPaidModal({
   payment,
@@ -63,26 +79,33 @@ export default function MarkPaidModal({
   onClose,
 }: {
   payment: PaymentRow;
-  onConfirm: (details: {
-    paidAt: string;
-    reference: string;
-    method: PaymentMethod | null;
-    proofs: ProofFile[];
-  }) => void;
+  /** Records the payment. Throws with the server's words if it refuses. */
+  onConfirm: (details: PaidDetails) => Promise<void>;
   onClose: () => void;
 }) {
   const [paidAt, setPaidAt] = useState(today());
   const [method, setMethod] = useState<PaymentMethod | "">("");
   const [reference, setReference] = useState("");
-  const [proofs, setProofs] = useState<ProofFile[]>([]);
+  const [proofs, setProofs] = useState<Attachment[]>([]);
   const [dragging, setDragging] = useState(false);
   const [justPasted, setJustPasted] = useState(0);
 
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
   const fileInput = useRef<HTMLInputElement>(null);
-  const saved = useRef(false);
+
+  /**
+   * What has already reached storage, by preview URL.
+   *
+   * If the row itself fails to save, the files are still up there — so a
+   * second press finishes the job instead of uploading everything twice
+   * and leaving the first copies orphaned in the bucket.
+   */
+  const uploaded = useRef(new Map<string, StoredProof>());
 
   /** Everything attached so far, for the cleanup that runs on the way out. */
-  const attached = useRef<ProofFile[]>([]);
+  const attached = useRef<Attachment[]>([]);
   useEffect(() => {
     attached.current = proofs;
   }, [proofs]);
@@ -92,6 +115,7 @@ export default function MarkPaidModal({
     // The object URLs are made here, outside the state updater, so a
     // double-invoked updater can never mint a second one nobody revokes.
     const incoming = files.map((file) => ({
+      file,
       name: nameFor(file, payment),
       sizeBytes: file.size,
       type: file.type,
@@ -114,6 +138,7 @@ export default function MarkPaidModal({
   /** That one preview is dead the moment its row leaves the list. */
   function removeProof(url: string) {
     setProofs((list) => list.filter((p) => p.url !== url));
+    uploaded.current.delete(url);
     URL.revokeObjectURL(url);
   }
 
@@ -143,10 +168,9 @@ export default function MarkPaidModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [payment.id]);
 
-  /** Previews the caller never kept are a leak; drop them on the way out. */
+  /** The previews are this dialog's own; none of them outlive it. */
   useEffect(() => {
     return () => {
-      if (saved.current) return;
       attached.current.forEach((p) => URL.revokeObjectURL(p.url));
     };
   }, []);
@@ -157,30 +181,80 @@ export default function MarkPaidModal({
     return () => clearTimeout(t);
   }, [justPasted]);
 
-  function confirm() {
-    saved.current = true;
-    onConfirm({
-      paidAt,
-      reference: reference.trim(),
-      method: method || null,
-      proofs,
+  /** Bytes straight from the browser to the bucket, then the path back. */
+  async function upload(proof: Attachment): Promise<StoredProof> {
+    const already = uploaded.current.get(proof.url);
+    if (already) return already;
+
+    const res = await fetch("/api/payments/proofs/sign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: proof.name,
+        type: proof.type,
+        size: proof.sizeBytes,
+      }),
     });
-    onClose();
+    const signed = await res.json().catch(() => null);
+    if (!res.ok || !signed?.path)
+      throw new Error(signed?.error || `Couldn't upload ${proof.name}.`);
+
+    const supabase = createClient();
+    const { error: upError } = await supabase.storage
+      .from("bid-files")
+      .uploadToSignedUrl(signed.path, signed.token, proof.file, {
+        contentType: proof.type || undefined,
+      });
+
+    if (upError)
+      throw new Error(upError.message || `Couldn't upload ${proof.name}.`);
+
+    const stored: StoredProof = {
+      name: proof.name,
+      storagePath: signed.path,
+      sizeBytes: proof.sizeBytes,
+      mimeType: proof.type,
+    };
+    uploaded.current.set(proof.url, stored);
+    return stored;
+  }
+
+  async function confirm() {
+    setError(null);
+    try {
+      const stored: StoredProof[] = [];
+      for (let i = 0; i < proofs.length; i++) {
+        setBusy(`Uploading ${i + 1} of ${proofs.length}…`);
+        stored.push(await upload(proofs[i]));
+      }
+      setBusy("Saving…");
+      await onConfirm({
+        paidAt,
+        reference: reference.trim(),
+        method: method || null,
+        proofs: stored,
+      });
+      onClose();
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(null);
+    }
   }
 
   return (
     <Modal
       title="Mark as paid"
       subtitle={`${money(payment.amount)} to ${payment.payTo || "—"} · ${payment.reason}`}
-      onClose={onClose}
+      onClose={busy ? () => {} : onClose}
       width={560}
       footer={
         <>
-          <button className="btn btn-secondary" onClick={onClose}>
+          <button className="btn btn-secondary" onClick={onClose} disabled={!!busy}>
             Cancel
           </button>
-          <button className="btn btn-primary" onClick={confirm}>
-            Mark as paid
+          <button className="btn btn-primary" onClick={confirm} disabled={!!busy}>
+            {busy ?? "Mark as paid"}
           </button>
         </>
       }
@@ -282,8 +356,9 @@ export default function MarkPaidModal({
                 <button
                   className="btn btn-ghost"
                   onClick={() => removeProof(p.url)}
+                  disabled={!!busy}
                   aria-label={`Remove ${p.name}`}
-                  style={{ color: "#b3261e", flex: "none" }}
+                  style={{ color: DANGER, flex: "none" }}
                 >
                   <Trash2 size={15} />
                 </button>
@@ -369,6 +444,8 @@ export default function MarkPaidModal({
           </div>
         ) : null}
       </div>
+
+      {error && <div style={errorLine}>{error}</div>}
     </Modal>
   );
 }

@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Modal, { ModalField } from "@/components/Modal";
 import { weekLabel } from "@/lib/weeks";
-import { MUTED } from "./sheet";
+import { MUTED, errorLine } from "./sheet";
+import { errorMessage } from "./PaymentsProvider";
 
 /**
  * Asking for a week you already handed in to be unlocked.
@@ -20,34 +21,45 @@ export default function ReopenRequestModal({
   onClose,
 }: {
   week: string;
-  onConfirm: (message: string) => void;
+  /** Sends the ask. Throws with the server's words if it refuses. */
+  onConfirm: (message: string) => Promise<void>;
   onClose: () => void;
 }) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | undefined>();
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
 
-  function confirm() {
+  async function confirm() {
     if (!message.trim()) {
       setError("Say what you need to change — the approval turns on this.");
       return;
     }
-    onConfirm(message.trim());
-    onClose();
+    setBusy(true);
+    setFailed(null);
+    try {
+      await onConfirm(message.trim());
+      onClose();
+    } catch (e) {
+      setFailed(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
     <Modal
       title="Request to reopen"
       subtitle={weekLabel(week)}
-      onClose={onClose}
+      onClose={busy ? () => {} : onClose}
       width={520}
       footer={
         <>
-          <button className="btn btn-secondary" onClick={onClose}>
+          <button className="btn btn-secondary" onClick={onClose} disabled={busy}>
             Cancel
           </button>
-          <button className="btn btn-primary" onClick={confirm}>
-            Send request
+          <button className="btn btn-primary" onClick={confirm} disabled={busy}>
+            {busy ? "Sending…" : "Send request"}
           </button>
         </>
       }
@@ -75,6 +87,8 @@ export default function ReopenRequestModal({
         Whoever handles the payments approves or declines this. If it is
         approved the week goes back to draft and you submit it again.
       </div>
+
+      {failed && <div style={errorLine}>{failed}</div>}
     </Modal>
   );
 }

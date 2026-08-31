@@ -128,6 +128,21 @@ export const ROW_COLUMNS =
 export const asRowRecord = (data: unknown) => data as PaymentRowRecord;
 export const asReopenRecord = (data: unknown) => data as ReopenRecord;
 
+/**
+ * The same assertion for a whole list.
+ *
+ * The routes read one row at a time; the /payments layout reads the
+ * company's entire schedule in one go and dresses it for the screens, so
+ * it asserts the shape of a list rather than of a record.
+ */
+export const asRowRecords = (data: unknown) => (data ?? []) as PaymentRowRecord[];
+export const asReopenRecords = (data: unknown) => (data ?? []) as ReopenRecord[];
+
+/** A proof read alongside its row, so a list of them can be grouped. */
+export type ProofRowRecord = ProofRecord & { payment_row_id: string };
+export const asProofRecords = (data: unknown) => (data ?? []) as ProofRowRecord[];
+export const PROOF_COLUMNS = "id, name, storage_path, size_bytes, mime_type";
+
 /** The three facts the guard asks about, straight off a database row. */
 export const factsOf = (row: PaymentRowRecord): RowFacts => ({
   pmId: row.pm_id,

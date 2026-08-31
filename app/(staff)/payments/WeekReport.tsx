@@ -9,8 +9,6 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  FileText,
-  ImageIcon,
   LockOpen,
   Pencil,
   Plus,
@@ -22,8 +20,9 @@ import Blueprint from "@/components/Blueprint";
 import FilterMenu from "@/components/FilterMenu";
 import ConfirmModal from "@/components/ConfirmModal";
 import PaymentModal from "./PaymentModal";
+import ProofLink from "./ProofLink";
 import ReopenRequestModal from "./ReopenRequestModal";
-import { usePayments } from "./PaymentsProvider";
+import { errorMessage, usePayments } from "./PaymentsProvider";
 import { SortHeader, nextSort, sortRows, type Sort, type SortKey } from "./sorting";
 import {
   DANGER,
@@ -31,6 +30,7 @@ import {
   FAINT,
   MUTED,
   cell,
+  errorLine,
   headCell,
   numCell,
   subtotalCell,
@@ -55,9 +55,15 @@ import {
   latePms,
   paymentState,
   pendingReopen,
+  type PM,
   type PaymentRow,
 } from "@/lib/payments";
-import { canEditRow } from "@/lib/paymentsGuard";
+import {
+  canAddToWeek,
+  canChangeRow,
+  isPaymentsAdmin,
+  rowFacts,
+} from "@/lib/paymentsGuard";
 
 type PmState = "submitted" | "draft" | "none";
 
@@ -67,18 +73,21 @@ export default function WeekReport({ week }: { week: string }) {
     me,
     pms,
     projects,
-    isOwner,
+    paymentsRole,
     canWrite,
-    isFinance,
     rows,
     submissions,
     reopenRequests,
     saveRow,
     removeRow,
-    setSubmitted,
+    submitWeek,
     requestReopen,
+    reopenWeek,
   } = usePayments();
   const router = useRouter();
+
+  /** Whoever handles the money. They are never locked out of a week. */
+  const isAdmin = isPaymentsAdmin(paymentsRole);
 
   const [pmFilter, setPmFilter] = useState<string[]>([]);
   const [projectFilter, setProjectFilter] = useState<string[]>([]);
@@ -90,7 +99,14 @@ export default function WeekReport({ week }: { week: string }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<PaymentRow | null>(null);
   const [deleting, setDeleting] = useState<PaymentRow | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [askingReopen, setAskingReopen] = useState(false);
+  /** The PM whose week an admin is about to unlock, if they are. */
+  const [unlocking, setUnlocking] = useState<PM | null>(null);
+  const [unlockError, setUnlockError] = useState<string | null>(null);
+
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const days = weekDays(week);
 
@@ -178,12 +194,44 @@ export default function WeekReport({ week }: { week: string }) {
   /** My outstanding ask to have this week unlocked, if I have made one. */
   const myReopen = pendingReopen(reopenRequests, me.id, week);
 
-  /** Every permission question in the app is answered in lib/paymentsGuard. */
+  /**
+   * Every permission question in the app is answered in lib/paymentsGuard.
+   *
+   * The signature that locks a row is its own PM's, not the reader's — an
+   * admin looking at somebody else's row has to be asking about the week
+   * that row belongs to.
+   */
   const canEdit = (row: PaymentRow) =>
-    canEditRow({ row, meId: me.id, isOwner, canWrite, weekSubmitted: iSubmitted });
+    canChangeRow({
+      row: rowFacts(row),
+      meId: me.id,
+      paymentsRole,
+      canWrite,
+      weekSubmitted: isWeekSubmitted(submissions, row.pmId, row.weekStart),
+    });
+
+  /** A PM cannot add to a week they signed. An admin always can. */
+  const canAdd = canAddToWeek({ paymentsRole, canWrite, weekSubmitted: iSubmitted });
 
   const togglePm = (pmId: string) =>
     setPmFilter((f) => (f.includes(pmId) ? f.filter((x) => x !== pmId) : [...f, pmId]));
+
+  /**
+   * Handing the week in. The signature is the server's to record — this
+   * only waits for it, and says so if it was refused rather than showing a
+   * week as submitted when it isn't.
+   */
+  async function submit() {
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      await submitWeek(week);
+    } catch (e) {
+      setSubmitError(errorMessage(e));
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   /**
    * Excel opens CSV natively — no library, and the file stays readable in
@@ -268,29 +316,18 @@ export default function WeekReport({ week }: { week: string }) {
         )}
         {state === "Paid" &&
           (proofs.length ? (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 3 }}>
-              {proofs.map((file, i) => {
-                const Icon = file.type.startsWith("image/") ? ImageIcon : FileText;
-                return (
-                  <a
-                    key={file.url}
-                    className="rowlink noprint"
-                    href={file.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    title={file.name}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 4,
-                      fontSize: 11,
-                    }}
-                  >
-                    <Icon size={11} />{" "}
-                    {proofs.length === 1 ? "Proof" : `Proof ${i + 1}`}
-                  </a>
-                );
-              })}
+            <div
+              className="noprint"
+              style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 3 }}
+            >
+              {proofs.map((file, i) => (
+                <ProofLink
+                  key={file.id ?? file.url}
+                  file={file}
+                  label={proofs.length === 1 ? "Proof" : `Proof ${i + 1}`}
+                  size={11}
+                />
+              ))}
             </div>
           ) : (
             <div style={{ fontSize: 11, color: MUTED, marginTop: 3 }}>no proof</div>
@@ -398,7 +435,12 @@ export default function WeekReport({ week }: { week: string }) {
             </button>
           </div>
 
-          {canWrite && (
+          {/*
+            A signed week has no Add button for its own PM: the way back in
+            is to ask for the week, which is the button sitting a few
+            inches below this one.
+          */}
+          {canAdd && (
             <button
               className="btn btn-primary blueprint noprint"
               onClick={() => setAdding(true)}
@@ -449,48 +491,79 @@ export default function WeekReport({ week }: { week: string }) {
               const late = deadlinePast && state !== "submitted";
               const on = pmFilter.includes(pm.id);
               return (
-                <button
+                <span
                   key={pm.id}
-                  className={`tag ${state === "submitted" ? "tag-accent" : "tag-neutral"} noprint`}
-                  onClick={() => togglePm(pm.id)}
-                  title={
-                    state === "submitted"
-                      ? "Submitted — click to show only these rows"
-                      : late
-                        ? `Late — the schedule was due ${deadlineLabel(week)} and ${
-                            state === "draft"
-                              ? "this is still a draft"
-                              : "nothing has been entered"
-                          }`
-                        : state === "draft"
-                          ? "Started, not submitted yet"
-                          : "Nothing entered for this week"
-                  }
-                  style={{
-                    gap: 5,
-                    cursor: "pointer",
-                    border: on ? "1px solid var(--color-accent)" : "1px solid transparent",
-                    // A late chip keeps its full weight — an empty week that is
-                    // also overdue is the loudest thing here, not the faintest.
-                    opacity: state === "none" && !late ? 0.55 : 1,
-                    ...(late ? { background: DANGER_TINT, color: DANGER } : null),
-                  }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 2 }}
                 >
-                  {state === "submitted" && <Check size={11} />}
-                  {pm.id === me.id ? "You" : pm.name}
-                  {late ? (
-                    <span style={{ fontWeight: 600 }}>late</span>
-                  ) : state === "draft" ? (
-                    <span style={{ color: FAINT }}>draft</span>
-                  ) : state === "none" ? (
-                    <span style={{ color: FAINT }}>—</span>
-                  ) : null}
-                </button>
+                  <button
+                    className={`tag ${state === "submitted" ? "tag-accent" : "tag-neutral"} noprint`}
+                    onClick={() => togglePm(pm.id)}
+                    title={
+                      state === "submitted"
+                        ? "Submitted — click to show only these rows"
+                        : late
+                          ? `Late — the schedule was due ${deadlineLabel(week)} and ${
+                              state === "draft"
+                                ? "this is still a draft"
+                                : "nothing has been entered"
+                            }`
+                          : state === "draft"
+                            ? "Started, not submitted yet"
+                            : "Nothing entered for this week"
+                    }
+                    style={{
+                      gap: 5,
+                      cursor: "pointer",
+                      border: on
+                        ? "1px solid var(--color-accent)"
+                        : "1px solid transparent",
+                      // A late chip keeps its full weight — an empty week that
+                      // is also overdue is the loudest thing here, not the
+                      // faintest.
+                      opacity: state === "none" && !late ? 0.55 : 1,
+                      ...(late ? { background: DANGER_TINT, color: DANGER } : null),
+                    }}
+                  >
+                    {state === "submitted" && <Check size={11} />}
+                    {pm.id === me.id ? "You" : pm.name}
+                    {late ? (
+                      <span style={{ fontWeight: 600 }}>late</span>
+                    ) : state === "draft" ? (
+                      <span style={{ color: FAINT }}>draft</span>
+                    ) : state === "none" ? (
+                      <span style={{ color: FAINT }}>—</span>
+                    ) : null}
+                  </button>
+
+                  {/*
+                    The admin's own way into a signed week. The request
+                    queue is how a PM gets one back; this is for the
+                    mistakes nobody is going to ask about — a week signed a
+                    day early, a row that is obviously wrong — and it sits
+                    on the chip that says the week is shut.
+                  */}
+                  {isAdmin && state === "submitted" && (
+                    <button
+                      className="btn btn-ghost noprint"
+                      onClick={() => {
+                        setUnlockError(null);
+                        setUnlocking(pm);
+                      }}
+                      aria-label={`Reopen this week for ${pm.name}`}
+                      title={`Reopen this week for ${
+                        pm.id === me.id ? "yourself" : pm.name
+                      } — no request needed`}
+                      style={{ padding: "0 2px", color: MUTED }}
+                    >
+                      <LockOpen size={12} />
+                    </button>
+                  )}
+                </span>
               );
             })}
           </span>
 
-          {isFinance && (
+          {isAdmin && (
             <Link
               className="btn btn-ghost noprint"
               href="/payments/approvals"
@@ -561,17 +634,19 @@ export default function WeekReport({ week }: { week: string }) {
             ) : (
               <button
                 className="btn btn-primary"
-                disabled={mine.length === 0}
-                onClick={() => setSubmitted(week, new Date().toISOString())}
+                disabled={mine.length === 0 || submitting}
+                onClick={submit}
                 title={
                   mine.length === 0
                     ? "Add at least one payment before submitting"
                     : undefined
                 }
               >
-                <Check size={15} /> Submit week
+                <Check size={15} /> {submitting ? "Submitting…" : "Submit week"}
               </button>
             )}
+
+            {submitError && <span style={errorLine}>{submitError}</span>}
           </div>
         )}
       </div>
@@ -759,7 +834,7 @@ export default function WeekReport({ week }: { week: string }) {
           projects={projects}
           pms={pms}
           me={me}
-          canPickPm={isOwner}
+          canPickPm={isAdmin}
           onSave={saveRow}
           onClose={() => setAdding(false)}
         />
@@ -771,7 +846,7 @@ export default function WeekReport({ week }: { week: string }) {
           projects={projects}
           pms={pms}
           me={me}
-          canPickPm={isOwner}
+          canPickPm={isAdmin}
           payment={editing}
           onSave={saveRow}
           onClose={() => setEditing(null)}
@@ -783,17 +858,29 @@ export default function WeekReport({ week }: { week: string }) {
           title="Delete payment"
           danger
           confirmLabel="Delete payment"
+          busyLabel="Deleting…"
           body={
             <>
               Remove <strong>{deleting.reason}</strong> — {money(deleting.amount)} to{" "}
               {deleting.payTo || "—"} ({dayOrAny(deleting.date)})?
+              {deleteError && (
+                <div style={{ ...errorLine, marginTop: 10 }}>{deleteError}</div>
+              )}
             </>
           }
-          onConfirm={() => {
-            removeRow(deleting.id);
-            setDeleting(null);
+          onConfirm={async () => {
+            setDeleteError(null);
+            try {
+              await removeRow(deleting.id);
+              setDeleting(null);
+            } catch (e) {
+              setDeleteError(errorMessage(e));
+            }
           }}
-          onClose={() => setDeleting(null)}
+          onClose={() => {
+            setDeleting(null);
+            setDeleteError(null);
+          }}
         />
       )}
 
@@ -802,6 +889,38 @@ export default function WeekReport({ week }: { week: string }) {
           week={week}
           onConfirm={(message) => requestReopen(week, message)}
           onClose={() => setAskingReopen(false)}
+        />
+      )}
+
+      {unlocking && (
+        <ConfirmModal
+          title="Reopen this week"
+          confirmLabel="Reopen the week"
+          busyLabel="Reopening…"
+          body={
+            <>
+              Drop <strong>{weekLabel(week)}</strong> back to draft for{" "}
+              <strong>{unlocking.id === me.id ? "yourself" : unlocking.name}</strong>?{" "}
+              {unlocking.id === me.id ? "You" : "They"} can edit it and submit it
+              again — nothing already entered is lost.
+              {unlockError && (
+                <div style={{ ...errorLine, marginTop: 10 }}>{unlockError}</div>
+              )}
+            </>
+          }
+          onConfirm={async () => {
+            setUnlockError(null);
+            try {
+              await reopenWeek(unlocking.id, week);
+              setUnlocking(null);
+            } catch (e) {
+              setUnlockError(errorMessage(e));
+            }
+          }}
+          onClose={() => {
+            setUnlocking(null);
+            setUnlockError(null);
+          }}
         />
       )}
     </>

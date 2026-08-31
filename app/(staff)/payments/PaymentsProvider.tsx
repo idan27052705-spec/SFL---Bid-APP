@@ -1,41 +1,79 @@
 "use client";
 
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext } from "react";
+import { useRouter } from "next/navigation";
 import type {
   PM,
   PaymentMethod,
   PaymentRow,
   Project,
-  ProofFile,
   ReopenRequest,
   WeekSubmission,
 } from "@/lib/payments";
+import type { PaymentsRole } from "@/lib/paymentsGuard";
+
+/**
+ * A proof whose bytes are already in storage.
+ *
+ * The file never goes through our server — the browser uploads it with a
+ * signed URL and this is all that is left to record. See MarkPaidModal.
+ */
+export type StoredProof = {
+  name: string;
+  storagePath: string;
+  sizeBytes: number;
+  mimeType: string;
+};
 
 export type PaidDetails = {
   paidAt: string;
   reference: string;
   method: PaymentMethod | null;
-  proofs: ProofFile[];
+  proofs: StoredProof[];
 };
+
+/**
+ * One expected payment as a dialog hands it over. No id means a new one.
+ *
+ * Deliberately not a `PaymentRow`: a form knows what was typed, not what
+ * the row will become. Who paid it, who sent it back and what its state is
+ * are the server's answers, and they come back on the next read.
+ */
+export type PaymentDraft = {
+  id?: string;
+  weekStart: string;
+  date: string | null;
+  pmId: string;
+  projectId: string | null;
+  projectName: string;
+  payTo: string;
+  reason: string;
+  amount: number;
+};
+
+/** Whatever a refused mutation threw, as a sentence to put on screen. */
+export const errorMessage = (e: unknown): string =>
+  e instanceof Error && e.message ? e.message : "That didn't save. Try again.";
 
 type PaymentsContextValue = {
   me: PM;
   pms: PM[];
   projects: Project[];
-  isOwner: boolean;
+  /** Who you are to the schedule: an admin handles the money. */
+  paymentsRole: PaymentsRole;
   canWrite: boolean;
-  /** Whoever handles the money sees the approvals screen. */
-  isFinance: boolean;
   rows: PaymentRow[];
   submissions: WeekSubmission[];
   reopenRequests: ReopenRequest[];
-  saveRow: (row: PaymentRow) => void;
-  removeRow: (id: string) => void;
-  setSubmitted: (week: string, at: string | null) => void;
-  markPaid: (id: string, details: PaidDetails) => void;
-  rejectRow: (id: string, reason: string) => void;
-  requestReopen: (week: string, message: string) => void;
-  resolveReopenRequest: (id: string, approved: boolean) => void;
+  saveRow: (draft: PaymentDraft) => Promise<void>;
+  removeRow: (id: string) => Promise<void>;
+  submitWeek: (week: string) => Promise<void>;
+  markPaid: (id: string, details: PaidDetails) => Promise<void>;
+  rejectRow: (id: string, reason: string) => Promise<void>;
+  requestReopen: (week: string, message: string) => Promise<void>;
+  resolveReopenRequest: (id: string, approved: boolean) => Promise<void>;
+  /** An admin unlocking a week without being asked. */
+  reopenWeek: (pmId: string, week: string) => Promise<void>;
 };
 
 const PaymentsContext = createContext<PaymentsContextValue | null>(null);
@@ -47,171 +85,145 @@ export function usePayments(): PaymentsContextValue {
 }
 
 /**
- * Holds the payment data for every screen under /payments.
+ * One call to /api/payments, with the server's own words on failure.
  *
- * It lives in the layout rather than in any one page, because the layout
- * is what survives navigating between the week list, a week, and the
- * approvals queue. While the rows are only in memory that is the
- * difference between keeping what someone just typed and throwing it
- * away — and once this is on Supabase, this is where the fetching and the
- * mutations go.
+ * Every route in the section answers `{ error }` with a sentence a person
+ * can act on — "You've already handed this week in" — so throwing it is
+ * what lets the dialog that asked show it. Nothing is swallowed: a
+ * mutation either returns or throws.
+ */
+async function send(url: string, method: string, body?: unknown): Promise<unknown> {
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method,
+      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch {
+    throw new Error("Couldn't reach the server. Check your connection and try again.");
+  }
+
+  const data = (await res.json().catch(() => null)) as
+    | { ok?: boolean; error?: string }
+    | null;
+
+  if (!res.ok || data?.ok === false)
+    throw new Error(data?.error || "That didn't save. Try again.");
+
+  return data;
+}
+
+/**
+ * The payment data for every screen under /payments, and the only way to
+ * change it.
+ *
+ * The rows, signatures and requests are the layout's server read, passed
+ * straight through — not copied into state. A copy would be a second
+ * answer to the same question: after a mutation asks for the read again,
+ * the props arrive updated and a `useState` seeded from them would not,
+ * so the screen would keep showing what was true before the save.
+ *
+ * Every mutation posts to the API, waits for the answer, then asks the
+ * server for the data again. They return promises and throw on failure so
+ * the dialog that called one can stay open, say what went wrong, and let
+ * the person try again.
  */
 export default function PaymentsProvider({
   me,
   pms,
   projects,
-  isOwner,
+  paymentsRole,
   canWrite,
-  isFinance,
-  initialRows,
-  initialSubmissions,
-  initialReopenRequests = [],
+  rows,
+  submissions,
+  reopenRequests,
   children,
 }: {
   me: PM;
   pms: PM[];
   projects: Project[];
-  isOwner: boolean;
+  paymentsRole: PaymentsRole;
   canWrite: boolean;
-  isFinance: boolean;
-  initialRows: PaymentRow[];
-  initialSubmissions: WeekSubmission[];
-  initialReopenRequests?: ReopenRequest[];
+  rows: PaymentRow[];
+  submissions: WeekSubmission[];
+  reopenRequests: ReopenRequest[];
   children: React.ReactNode;
 }) {
-  const [rows, setRows] = useState(initialRows);
-  const [submissions, setSubmissions] = useState(initialSubmissions);
-  const [reopenRequests, setReopenRequests] = useState(initialReopenRequests);
+  const router = useRouter();
 
   /**
    * Editing a row that was sent back clears the rejection, which puts it
-   * straight back in the finance queue. That is the whole loop: there is
-   * no separate "resubmit" button to forget to press.
+   * straight back in the finance queue. That is the whole loop, and it
+   * happens in the route — there is no separate "resubmit" button here to
+   * forget to press.
    */
-  function saveRow(row: PaymentRow) {
-    const cleaned: PaymentRow = {
-      ...row,
-      rejectedAt: undefined,
-      rejectedBy: undefined,
-      rejectionReason: undefined,
-    };
-    setRows((list) =>
-      list.some((r) => r.id === cleaned.id)
-        ? list.map((r) => (r.id === cleaned.id ? cleaned : r))
-        : [...list, cleaned]
-    );
+  async function saveRow(draft: PaymentDraft) {
+    const { id, ...fields } = draft;
+    if (id) await send(`/api/payments/${id}`, "PATCH", fields);
+    else await send("/api/payments", "POST", fields);
+    router.refresh();
   }
 
-  function removeRow(id: string) {
-    setRows((list) => list.filter((r) => r.id !== id));
+  async function removeRow(id: string) {
+    await send(`/api/payments/${id}`, "DELETE");
+    router.refresh();
   }
 
-  function markPaid(
+  /** You sign your own week and nobody else's, so the route takes no PM. */
+  async function submitWeek(week: string) {
+    await send("/api/payments/submit", "POST", { weekStart: week });
+    router.refresh();
+  }
+
+  async function markPaid(
     id: string,
     { paidAt, reference, method, proofs }: PaidDetails
   ) {
-    setRows((list) =>
-      list.map((r) =>
-        r.id === id
-          ? {
-              ...r,
-              paidAt,
-              paidBy: me.name,
-              paidMethod: method ?? undefined,
-              paidReference: reference || undefined,
-              proofs,
-              rejectedAt: undefined,
-              rejectedBy: undefined,
-              rejectionReason: undefined,
-            }
-          : r
-      )
-    );
-  }
-
-  function rejectRow(id: string, reason: string) {
-    setRows((list) =>
-      list.map((r) =>
-        r.id === id
-          ? {
-              ...r,
-              rejectedAt: new Date().toISOString(),
-              rejectedBy: me.name,
-              rejectionReason: reason,
-            }
-          : r
-      )
-    );
-  }
-
-  function setSubmitted(week: string, at: string | null) {
-    setSubmissions((list) => {
-      const found = list.some((s) => s.pmId === me.id && s.weekStart === week);
-      if (!found) return [...list, { pmId: me.id, weekStart: week, submittedAt: at }];
-      return list.map((s) =>
-        s.pmId === me.id && s.weekStart === week ? { ...s, submittedAt: at } : s
-      );
+    await send(`/api/payments/${id}/paid`, "POST", {
+      paidOn: paidAt,
+      method,
+      reference,
+      proofs,
     });
+    router.refresh();
+  }
+
+  async function rejectRow(id: string, reason: string) {
+    await send(`/api/payments/${id}/reject`, "POST", { reason });
+    router.refresh();
   }
 
   /**
-   * A PM cannot un-submit themselves, so this is the only way a locked week
-   * opens again: they ask, with a reason, and it lands in the approvals
-   * queue. Asking a second time replaces the first rather than stacking up,
-   * because whoever reads that queue should see one line per week — the
-   * latest thing the PM has to say about it, not a history of nagging.
+   * A PM cannot un-submit themselves, so this is the only way a locked
+   * week opens from their side: they ask, with a reason, and it lands in
+   * the approvals queue. Asking a second time replaces the first rather
+   * than stacking up — whoever reads that queue should see one line per
+   * week, not a history of nagging.
    */
-  function requestReopen(week: string, message: string) {
-    const request: ReopenRequest = {
-      id: `reopen-${me.id}-${week}-${Date.now()}`,
-      pmId: me.id,
-      pmName: me.name,
+  async function requestReopen(week: string, message: string) {
+    await send("/api/payments/reopen-requests", "POST", {
       weekStart: week,
       message,
-      createdAt: new Date().toISOString(),
-      status: "pending",
-    };
-    setReopenRequests((list) => [
-      ...list.filter(
-        (r) =>
-          !(r.pmId === me.id && r.weekStart === week && r.status === "pending")
-      ),
-      request,
-    ]);
+    });
+    router.refresh();
   }
 
   /**
    * Approving is the one thing that clears a submission — the week drops
-   * back to Draft for that PM, who edits it and signs it again, so the
-   * report never sits in a half-state where it is neither handed in nor
-   * being worked on. Declining leaves the signature standing and keeps the
-   * request on the record, with a name against the decision.
+   * back to draft for that PM, who edits it and signs it again. Declining
+   * leaves the signature standing and keeps the ask on the record, with a
+   * name against the decision.
    */
-  function resolveReopenRequest(id: string, approved: boolean) {
-    const request = reopenRequests.find((r) => r.id === id);
-    if (!request) return;
+  async function resolveReopenRequest(id: string, approved: boolean) {
+    await send(`/api/payments/reopen-requests/${id}`, "PATCH", { approved });
+    router.refresh();
+  }
 
-    setReopenRequests((list) =>
-      list.map((r) =>
-        r.id === id
-          ? {
-              ...r,
-              status: approved ? ("approved" as const) : ("declined" as const),
-              resolvedAt: new Date().toISOString(),
-              resolvedBy: me.name,
-            }
-          : r
-      )
-    );
-
-    if (!approved) return;
-    setSubmissions((list) =>
-      list.map((s) =>
-        s.pmId === request.pmId && s.weekStart === request.weekStart
-          ? { ...s, submittedAt: null }
-          : s
-      )
-    );
+  /** The admin's own way in: unlock a week nobody has asked about. */
+  async function reopenWeek(pmId: string, week: string) {
+    await send("/api/payments/reopen", "POST", { pmId, weekStart: week });
+    router.refresh();
   }
 
   return (
@@ -220,19 +232,19 @@ export default function PaymentsProvider({
         me,
         pms,
         projects,
-        isOwner,
+        paymentsRole,
         canWrite,
-        isFinance,
         rows,
         submissions,
         reopenRequests,
         saveRow,
         removeRow,
-        setSubmitted,
+        submitWeek,
         markPaid,
         rejectRow,
         requestReopen,
         resolveReopenRequest,
+        reopenWeek,
       }}
     >
       {children}

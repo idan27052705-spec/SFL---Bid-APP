@@ -192,6 +192,8 @@ export type TeamMember = {
   name: string;
   email: string;
   role: string;
+  /** 'admin' or 'pm' on the payment schedule. An owner is an admin anyway. */
+  paymentsRole: string;
   lastActive: string;
   isYou: boolean;
 };
@@ -327,12 +329,13 @@ export function TeamTable({ team, isOwner }: { team: TeamMember[]; isOwner: bool
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
 
-  async function setRole(id: string, role: string) {
+  /** One route for both roles — it takes whichever one is sent. */
+  async function patch(id: string, change: Record<string, string>) {
     setError(null);
     const res = await fetch(`/api/team/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role }),
+      body: JSON.stringify(change),
     });
     const data = await res.json();
     if (!res.ok) setError(data.error);
@@ -348,6 +351,7 @@ export function TeamTable({ team, isOwner }: { team: TeamMember[]; isOwner: bool
             <th>Name</th>
             <th>Email</th>
             <th>Role</th>
+            <th>Payments</th>
             <th style={{ textAlign: "right" }}>Last active</th>
           </tr>
         </thead>
@@ -365,7 +369,7 @@ export function TeamTable({ team, isOwner }: { team: TeamMember[]; isOwner: bool
                     className="input"
                     style={{ width: 130 }}
                     value={u.role}
-                    onChange={(e) => setRole(u.id, e.target.value)}
+                    onChange={(e) => patch(u.id, { role: e.target.value })}
                   >
                     <option value="owner">owner</option>
                     <option value="staff">staff</option>
@@ -373,6 +377,37 @@ export function TeamTable({ team, isOwner }: { team: TeamMember[]; isOwner: bool
                   </select>
                 ) : (
                   <span className="tag tag-neutral">{u.role}</span>
+                )}
+              </td>
+              {/*
+                Who handles the money. An owner is a payments admin whatever
+                the column says — someone must always be able to pay a week
+                and undo a mistake — so their row states it rather than
+                offering a choice that would not be honoured.
+              */}
+              <td>
+                {u.role === "owner" ? (
+                  <span
+                    className="tag tag-accent"
+                    title="An owner always handles the payments — the schedule can never be left without an admin."
+                  >
+                    Admin (owner)
+                  </span>
+                ) : isOwner ? (
+                  <select
+                    className="input"
+                    style={{ width: 150 }}
+                    value={u.paymentsRole === "admin" ? "admin" : "pm"}
+                    onChange={(e) => patch(u.id, { paymentsRole: e.target.value })}
+                    title="Admins pay rows, send them back and reopen weeks. Project managers own their own week."
+                  >
+                    <option value="pm">Project manager</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                ) : (
+                  <span className="tag tag-neutral">
+                    {u.paymentsRole === "admin" ? "Admin" : "Project manager"}
+                  </span>
                 )}
               </td>
               <td style={{ textAlign: "right", fontSize: 13 }}>{u.lastActive}</td>

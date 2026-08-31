@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Modal, { ModalField } from "@/components/Modal";
 import { money } from "@/lib/format";
-import { MUTED } from "./sheet";
+import { DANGER, MUTED, errorLine } from "./sheet";
+import { errorMessage } from "./PaymentsProvider";
 import { dayOrAny, type PaymentRow } from "@/lib/payments";
 
 /**
@@ -19,38 +20,50 @@ export default function RejectModal({
   onClose,
 }: {
   payment: PaymentRow;
-  onConfirm: (reason: string) => void;
+  /** Sends it back. Throws with the server's words if it refuses. */
+  onConfirm: (reason: string) => Promise<void>;
   onClose: () => void;
 }) {
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | undefined>();
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
 
-  function confirm() {
+  async function confirm() {
     if (!reason.trim()) {
       setError("Say what needs fixing — the PM sees this.");
       return;
     }
-    onConfirm(reason.trim());
-    onClose();
+    setBusy(true);
+    setFailed(null);
+    try {
+      await onConfirm(reason.trim());
+      onClose();
+    } catch (e) {
+      setFailed(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
     <Modal
       title="Send back to the PM"
       subtitle={`${money(payment.amount)} to ${payment.payTo || "—"} · ${payment.reason}`}
-      onClose={onClose}
+      onClose={busy ? () => {} : onClose}
       width={520}
       footer={
         <>
-          <button className="btn btn-secondary" onClick={onClose}>
+          <button className="btn btn-secondary" onClick={onClose} disabled={busy}>
             Cancel
           </button>
           <button
             className="btn btn-primary"
             onClick={confirm}
-            style={{ background: "#b3261e", borderColor: "#b3261e", color: "#fff" }}
+            disabled={busy}
+            style={{ background: DANGER, borderColor: DANGER, color: "#fff" }}
           >
-            Send back
+            {busy ? "Sending back…" : "Send back"}
           </button>
         </>
       }
@@ -78,6 +91,8 @@ export default function RejectModal({
         {payment.pmName} will see this on the row. Editing it puts the payment
         straight back in your queue.
       </div>
+
+      {failed && <div style={errorLine}>{failed}</div>}
     </Modal>
   );
 }

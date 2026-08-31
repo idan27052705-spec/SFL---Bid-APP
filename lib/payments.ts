@@ -1,8 +1,10 @@
 /**
  * The payment schedule's shapes and rules.
  *
- * This is the domain — it stays when lib/paymentsMock.ts is deleted and
- * the real tables arrive. `PaymentRow` is the shape the API will return.
+ * This is the domain, and it is the one file both sides read: the API
+ * routes return these shapes (see lib/paymentsServer.ts, which translates
+ * the database's snake_case into them) and the screens under /payments
+ * take them as props. Nothing here talks to Supabase or to React.
  */
 
 import { today } from "@/lib/dates";
