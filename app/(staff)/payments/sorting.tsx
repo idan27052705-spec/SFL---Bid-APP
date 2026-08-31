@@ -15,6 +15,12 @@ export type SortKey =
 export type Sort = { key: SortKey; dir: "asc" | "desc" };
 
 /**
+ * A row with no day sorts as if it fell after the end of time, so it lands
+ * behind every dated row wherever the day is compared.
+ */
+export const dayKey = (row: PaymentRow) => row.date ?? "9999-12-31";
+
+/**
  * Sorting with a stable tail: rows that tie on the chosen column always
  * come back in the same order, so clicking a header twice doesn't shuffle
  * unrelated rows around.
@@ -29,15 +35,29 @@ function compareRows(a: PaymentRow, b: PaymentRow, key: SortKey): number {
         });
   if (primary !== 0) return primary;
   return (
-    a.date.localeCompare(b.date) ||
+    dayKey(a).localeCompare(dayKey(b)) ||
     a.pmName.localeCompare(b.pmName) ||
     a.reason.localeCompare(b.reason)
   );
 }
 
+/**
+ * Rows with no day sit at the bottom of the day column both ways round.
+ *
+ * A payment nobody has put a day on is the least schedulable thing in the
+ * list, so it belongs after the week either way: flipping the sort to read
+ * the far end of the week should not bury the days you are looking for
+ * under the rows that have none.
+ */
 export function sortRows(rows: PaymentRow[], sort: Sort): PaymentRow[] {
   const factor = sort.dir === "asc" ? 1 : -1;
-  return [...rows].sort((a, b) => factor * compareRows(a, b, sort.key));
+  return [...rows].sort((a, b) => {
+    if (sort.key === "date") {
+      const parked = Number(!a.date) - Number(!b.date);
+      if (parked !== 0) return parked;
+    }
+    return factor * compareRows(a, b, sort.key);
+  });
 }
 
 /** Clicking the active column flips it; a new column starts fresh. */

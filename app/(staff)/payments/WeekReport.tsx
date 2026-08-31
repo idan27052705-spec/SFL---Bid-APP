@@ -39,6 +39,7 @@ import {
 import {
   STATE_LABEL,
   STATE_TAG,
+  dayOrAny,
   isWeekSubmitted,
   paymentState,
   pendingReopen,
@@ -113,6 +114,24 @@ export default function WeekReport({ week }: { week: string }) {
   const groupedDays =
     sort.key === "date" && sort.dir === "desc" ? [...days].reverse() : days;
 
+  /**
+   * What "Group by day" breaks the week into: the seven days, and then
+   * everything nobody has put a day on.
+   *
+   * That last group is not a tidiness thing. A day subtotal is only worth
+   * printing if the subtotals add up to the week total, and rows with no
+   * day belong to no day — so they get a line of their own rather than
+   * quietly vanishing out of the grouped view.
+   */
+  const dayGroups = [
+    ...groupedDays.map((d) => ({
+      key: d,
+      label: dayName(d),
+      rows: sorted.filter((r) => r.date === d),
+    })),
+    { key: "no-day", label: "No set day", rows: sorted.filter((r) => !r.date) },
+  ].filter((g) => g.rows.length > 0);
+
   const onSort = (key: SortKey) => setSort((s) => nextSort(s, key));
 
   /* — submissions — */
@@ -157,7 +176,9 @@ export default function WeekReport({ week }: { week: string }) {
     ];
 
     const line = (r: PaymentRow) => [
-      dayLabel(r.date),
+      // A day nobody set is left blank rather than filled with a word:
+      // the column is a date column, and Excel should be able to read it.
+      r.date ? dayLabel(r.date) : "",
       r.pmName,
       r.projectName,
       r.payTo,
@@ -167,17 +188,15 @@ export default function WeekReport({ week }: { week: string }) {
     ];
 
     if (groupByDay) {
-      groupedDays.forEach((d) => {
-        const dayRows = sorted.filter((r) => r.date === d);
-        if (!dayRows.length) return;
-        dayRows.forEach((r) => out.push(line(r)));
+      dayGroups.forEach((g) => {
+        g.rows.forEach((r) => out.push(line(r)));
         out.push([
-          `${dayName(d)} total`,
+          `${g.label} total`,
           "",
           "",
           "",
           "",
-          dayRows.reduce((s, r) => s + r.amount, 0),
+          g.rows.reduce((s, r) => s + r.amount, 0),
           "",
         ]);
       });
@@ -208,33 +227,47 @@ export default function WeekReport({ week }: { week: string }) {
 
   const statusCell = (r: PaymentRow) => {
     const state = stateOf(r);
-    const Icon = r.proof?.type.startsWith("image/") ? ImageIcon : FileText;
+    const proofs = r.proofs ?? [];
     return (
       <td style={cell}>
         <span className={STATE_TAG[state]}>{STATE_LABEL[state]}</span>
+        {/*
+          Who sent it back matters as much as why: the PM reading this has
+          to know which desk to answer, and an unsigned complaint on a row
+          is how a payment sits untouched for a week.
+        */}
         {state === "Rejected" && r.rejectionReason && (
           <div style={{ fontSize: 11, color: "#b3261e", marginTop: 3, maxWidth: 220 }}>
-            {r.rejectionReason}
+            {r.rejectedBy && `Reason by ${r.rejectedBy}: `}
+            &ldquo;{r.rejectionReason}&rdquo;
           </div>
         )}
         {state === "Paid" &&
-          (r.proof ? (
-            <a
-              className="rowlink noprint"
-              href={r.proof.url}
-              target="_blank"
-              rel="noreferrer"
-              title={r.proof.name}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 4,
-                fontSize: 11,
-                marginTop: 3,
-              }}
-            >
-              <Icon size={11} /> Proof
-            </a>
+          (proofs.length ? (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 3 }}>
+              {proofs.map((file, i) => {
+                const Icon = file.type.startsWith("image/") ? ImageIcon : FileText;
+                return (
+                  <a
+                    key={file.url}
+                    className="rowlink noprint"
+                    href={file.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={file.name}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      fontSize: 11,
+                    }}
+                  >
+                    <Icon size={11} />{" "}
+                    {proofs.length === 1 ? "Proof" : `Proof ${i + 1}`}
+                  </a>
+                );
+              })}
+            </div>
           ) : (
             <div style={{ fontSize: 11, color: MUTED, marginTop: 3 }}>no proof</div>
           ))}
@@ -244,7 +277,15 @@ export default function WeekReport({ week }: { week: string }) {
 
   const paymentRow = (r: PaymentRow) => (
     <tr key={r.id}>
-      <td style={{ ...cell, whiteSpace: "nowrap" }}>{dayLabel(r.date)}</td>
+      <td
+        style={{
+          ...cell,
+          whiteSpace: "nowrap",
+          color: r.date ? undefined : MUTED,
+        }}
+      >
+        {dayOrAny(r.date)}
+      </td>
       <td style={{ ...cell, whiteSpace: "nowrap" }}>
         {r.pmId === me.id ? <strong>{r.pmName}</strong> : r.pmName}
       </td>
@@ -606,17 +647,15 @@ export default function WeekReport({ week }: { week: string }) {
                     </td>
                   </tr>
                 ) : groupByDay ? (
-                  groupedDays.map((d) => {
-                    const dayRows = sorted.filter((r) => r.date === d);
-                    if (dayRows.length === 0) return null;
-                    const dayTotal = dayRows.reduce((s, r) => s + r.amount, 0);
+                  dayGroups.map((g) => {
+                    const dayTotal = g.rows.reduce((s, r) => s + r.amount, 0);
 
                     return (
-                      <Fragment key={d}>
-                        {dayRows.map(paymentRow)}
+                      <Fragment key={g.key}>
+                        {g.rows.map(paymentRow)}
                         <tr>
                           <td style={subtotalCell} colSpan={5}>
-                            <span style={{ color: MUTED }}>{dayName(d)} total</span>
+                            <span style={{ color: MUTED }}>{g.label} total</span>
                           </td>
                           <td
                             style={{ ...subtotalCell, textAlign: "right", fontWeight: 600 }}
@@ -702,7 +741,7 @@ export default function WeekReport({ week }: { week: string }) {
           body={
             <>
               Remove <strong>{deleting.reason}</strong> — {money(deleting.amount)} to{" "}
-              {deleting.payTo || "—"} on {dayLabel(deleting.date)}?
+              {deleting.payTo || "—"} ({dayOrAny(deleting.date)})?
             </>
           }
           onConfirm={() => {

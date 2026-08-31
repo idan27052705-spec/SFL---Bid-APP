@@ -3,9 +3,8 @@
 import { useState } from "react";
 import Modal, { ModalField } from "@/components/Modal";
 import { money } from "@/lib/format";
-import { dayLabel } from "@/lib/weeks";
 import { MUTED } from "./sheet";
-import type { PaymentRow } from "@/lib/payments";
+import { dayOrAny, type PaymentRow } from "@/lib/payments";
 
 /**
  * Sending a payment back to the PM.
@@ -57,7 +56,7 @@ export default function RejectModal({
       }
     >
       <div style={{ fontSize: 13, color: MUTED }}>
-        Scheduled for {dayLabel(payment.date)} · {payment.projectName} ·{" "}
+        Scheduled for {dayOrAny(payment.date)} · {payment.projectName} ·{" "}
         {payment.pmName}
       </div>
 

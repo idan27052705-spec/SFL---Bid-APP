@@ -16,12 +16,24 @@ import Blueprint from "@/components/Blueprint";
 import MarkPaidModal from "./MarkPaidModal";
 import RejectModal from "./RejectModal";
 import { usePayments, type PaidDetails } from "./PaymentsProvider";
-import { SortHeader, nextSort, sortRows, type Sort, type SortKey } from "./sorting";
+import {
+  SortHeader,
+  dayKey,
+  nextSort,
+  sortRows,
+  type Sort,
+  type SortKey,
+} from "./sorting";
 import { MUTED, cell, headCell, numCell } from "./sheet";
 import { money } from "@/lib/format";
 import { formatDate, timeAgo } from "@/lib/format";
-import { dayLabel, weekLabel } from "@/lib/weeks";
-import { isWeekSubmitted, paymentState, type PaymentRow } from "@/lib/payments";
+import { weekLabel } from "@/lib/weeks";
+import {
+  dayOrAny,
+  isWeekSubmitted,
+  paymentState,
+  type PaymentRow,
+} from "@/lib/payments";
 
 const SECTION_TITLE: React.CSSProperties = {
   fontFamily: "var(--font-heading)",
@@ -71,7 +83,7 @@ export default function ApprovalsQueue() {
     () =>
       rows
         .filter((r) => stateOf(r) === "Rejected")
-        .sort((a, b) => a.date.localeCompare(b.date)),
+        .sort((a, b) => dayKey(a).localeCompare(dayKey(b))),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [rows, submissions]
   );
@@ -94,7 +106,7 @@ export default function ApprovalsQueue() {
   );
 
   const waitingTotal = waiting.reduce((s, r) => s + r.amount, 0);
-  const missingProof = paid.filter((r) => !r.proof).length;
+  const missingProof = paid.filter((r) => !r.proofs?.length).length;
 
   const onSort = (key: SortKey) => setSort((s) => nextSort(s, key));
 
@@ -115,7 +127,7 @@ export default function ApprovalsQueue() {
   /** The Due cell doubles as the way back into the week it belongs to. */
   const dueCell = (r: PaymentRow) => (
     <td style={{ ...cell, whiteSpace: "nowrap" }}>
-      {dayLabel(r.date)}
+      <span style={r.date ? undefined : { color: MUTED }}>{dayOrAny(r.date)}</span>
       <div style={{ fontSize: 11 }}>
         <Link className="rowlink" href={`/payments/${r.weekStart}`} style={{ color: MUTED }}>
           {weekLabel(r.weekStart)}
@@ -124,25 +136,39 @@ export default function ApprovalsQueue() {
     </td>
   );
 
-  const proofChip = (r: PaymentRow) => {
-    if (!r.proof)
+  /** One line per file — the count is part of what the cell has to say. */
+  const proofLinks = (r: PaymentRow) => {
+    const files = r.proofs ?? [];
+    if (!files.length)
       return (
         <span style={{ fontSize: 12, color: MUTED }} title="Paid with no proof attached">
           no proof
         </span>
       );
-    const Icon = r.proof.type.startsWith("image/") ? ImageIcon : FileText;
     return (
-      <a
-        className="rowlink"
-        href={r.proof.url}
-        target="_blank"
-        rel="noreferrer"
-        style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12 }}
-        title={r.proof.name}
-      >
-        <Icon size={13} /> View
-      </a>
+      <div style={{ display: "grid", gap: 3 }}>
+        {files.map((file) => {
+          const Icon = file.type.startsWith("image/") ? ImageIcon : FileText;
+          return (
+            <a
+              key={file.url}
+              className="rowlink"
+              href={file.url}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                fontSize: 12,
+              }}
+              title={file.name}
+            >
+              <Icon size={13} /> View
+            </a>
+          );
+        })}
+      </div>
     );
   };
 
@@ -418,7 +444,7 @@ export default function ApprovalsQueue() {
                       <th style={headCell}>PM</th>
                       <th style={headCell}>Pay to</th>
                       <th style={headCell}>Reason for pay</th>
-                      <th style={headCell}>Reference</th>
+                      <th style={headCell}>Method / ref.</th>
                       <th style={{ ...headCell, textAlign: "right" }}>Amount</th>
                       <th style={{ ...headCell, width: 90 }}>Proof</th>
                     </tr>
@@ -433,13 +459,24 @@ export default function ApprovalsQueue() {
                         <td style={{ ...cell, whiteSpace: "nowrap" }}>{r.pmName}</td>
                         <td style={cell}>{r.payTo || "—"}</td>
                         <td style={cell}>{r.reason}</td>
-                        <td style={{ ...cell, fontSize: 13 }} className="mono">
-                          {r.paidReference || "—"}
+                        {/*
+                          How it was paid and what the bank calls it are two
+                          different answers to "which payment was this?" —
+                          the method reads as words, the reference as a code.
+                        */}
+                        <td style={{ ...cell, fontSize: 13 }}>
+                          {r.paidMethod || "—"}
+                          <div
+                            className="mono"
+                            style={{ fontSize: 11, color: MUTED }}
+                          >
+                            {r.paidReference || "—"}
+                          </div>
                         </td>
                         <td style={numCell} className="tabular">
                           {money(r.amount)}
                         </td>
-                        <td style={cell}>{proofChip(r)}</td>
+                        <td style={cell}>{proofLinks(r)}</td>
                       </tr>
                     ))}
                   </tbody>

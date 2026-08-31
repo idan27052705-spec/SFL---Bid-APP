@@ -2,56 +2,9 @@
 
 import { useState } from "react";
 import Modal, { ModalField } from "@/components/Modal";
+import SelectField from "./SelectField";
 import { dayLabel, weekDays } from "@/lib/weeks";
 import type { PM, PaymentRow, Project } from "@/lib/payments";
-
-/**
- * A select that carries an id, not just its label — the house ModalField
- * only does string options, and the day has to save as a date.
- */
-function SelectField({
-  id,
-  label,
-  value,
-  onChange,
-  options,
-  error,
-  required,
-  placeholder,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-  error?: string;
-  required?: boolean;
-  placeholder?: string;
-}) {
-  return (
-    <div className="field">
-      <label htmlFor={id}>
-        {label}
-        {required && <span style={{ color: "#b3261e" }}> *</span>}
-      </label>
-      <select
-        id={id}
-        className="input"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        style={error ? { borderColor: "#b3261e" } : undefined}
-      >
-        {placeholder && <option value="">{placeholder}</option>}
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-      {error && <div style={{ fontSize: 12, color: "#b3261e", marginTop: 4 }}>{error}</div>}
-    </div>
-  );
-}
 
 /**
  * Add or edit one expected payment.
@@ -60,6 +13,10 @@ function SelectField({
  * knows the names by heart and types faster than they can work a list,
  * and a payment to a supplier nobody has entered yet must never be
  * blocked by one.
+ *
+ * The day is a choice, not a requirement. A PM usually knows the week and
+ * not the morning, and a required day only buys a made-up Monday on every
+ * row — so "Any day this week" is a real answer and saves as no day.
  *
  * "Save & add another" is the button that matters here. The project and
  * the day are usually the same for several payments in a row, so those
@@ -108,7 +65,6 @@ export default function PaymentModal({
   function validate() {
     const next: Record<string, string> = {};
     if (!projectName.trim()) next.project = "Type the project this payment is for.";
-    if (!date) next.date = "Pick the day it is expected to go out.";
     if (!reason.trim()) next.reason = "Say what the payment is for.";
 
     const n = Number(amount);
@@ -131,7 +87,9 @@ export default function PaymentModal({
     return {
       id,
       weekStart,
-      date,
+      // Empty means the PM picked "Any day this week", which is a day of
+      // its own — not a blank waiting to be filled in.
+      date: date || null,
       pmId: pm.id,
       pmName: pm.name,
       projectId: known?.id ?? null,
@@ -142,7 +100,7 @@ export default function PaymentModal({
     };
   }
 
-  const newId = () => `new-${pmId}-${date}-${Date.now()}-${added}`;
+  const newId = () => `new-${pmId}-${date || "any"}-${Date.now()}-${added}`;
 
   function save() {
     if (!validate()) return;
@@ -201,18 +159,19 @@ export default function PaymentModal({
         placeholder="Las Olas Residence"
       />
 
+      {/*
+        "Any day this week" is the first option rather than a placeholder:
+        it is an answer, and the empty value is what gets saved for it.
+      */}
       <SelectField
         id="pay-day"
         label="Expected day"
-        required
         value={date}
-        onChange={(v) => {
-          setDate(v);
-          clear("date");
-        }}
-        error={errors.date}
-        placeholder="Select a day"
-        options={days.map((d) => ({ value: d, label: dayLabel(d) }))}
+        onChange={setDate}
+        options={[
+          { value: "", label: "Any day this week" },
+          ...days.map((d) => ({ value: d, label: dayLabel(d) })),
+        ]}
       />
 
       <ModalField

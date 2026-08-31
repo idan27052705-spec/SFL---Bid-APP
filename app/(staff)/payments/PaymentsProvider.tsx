@@ -3,6 +3,7 @@
 import { createContext, useContext, useState } from "react";
 import type {
   PM,
+  PaymentMethod,
   PaymentRow,
   Project,
   ProofFile,
@@ -13,7 +14,8 @@ import type {
 export type PaidDetails = {
   paidAt: string;
   reference: string;
-  proof: ProofFile | null;
+  method: PaymentMethod | null;
+  proofs: ProofFile[];
 };
 
 type PaymentsContextValue = {
@@ -104,7 +106,10 @@ export default function PaymentsProvider({
     setRows((list) => list.filter((r) => r.id !== id));
   }
 
-  function markPaid(id: string, { paidAt, reference, proof }: PaidDetails) {
+  function markPaid(
+    id: string,
+    { paidAt, reference, method, proofs }: PaidDetails
+  ) {
     setRows((list) =>
       list.map((r) =>
         r.id === id
@@ -112,8 +117,9 @@ export default function PaymentsProvider({
               ...r,
               paidAt,
               paidBy: me.name,
+              paidMethod: method ?? undefined,
               paidReference: reference || undefined,
-              proof: proof ?? undefined,
+              proofs,
               rejectedAt: undefined,
               rejectedBy: undefined,
               rejectionReason: undefined,
