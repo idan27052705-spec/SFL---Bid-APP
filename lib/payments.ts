@@ -5,7 +5,8 @@
  * the real tables arrive. `PaymentRow` is the shape the API will return.
  */
 
-import { dayLabel } from "@/lib/weeks";
+import { today } from "@/lib/dates";
+import { addDays, dayLabel, submissionDeadline } from "@/lib/weeks";
 
 export type PM = { id: string; name: string };
 export type Project = { id: string; name: string };
@@ -163,3 +164,61 @@ export const pendingReopen = (
   requests.find(
     (r) => r.pmId === pmId && r.weekStart === weekStart && r.status === "pending"
   );
+
+/* ─────────────────────────────────────────────────────────────
+   Two deadlines, and what it means to have missed one.
+
+   Both take today as an argument, defaulting to the company's today.
+   A screen that shows a dozen weeks at once should read the clock once
+   and pass the same day down — otherwise a render that straddles
+   midnight can call the same week late in one row and not the next.
+   It also makes these testable without moving the clock.
+   ─────────────────────────────────────────────────────────── */
+
+/** Has the Thursday this week's schedules were due already gone by? */
+export const isDeadlinePast = (weekStart: string, todayStr: string = today()) =>
+  todayStr > submissionDeadline(weekStart);
+
+/**
+ * The PMs who owe this week and are out of time.
+ *
+ * "Late" is not a state anybody sets — nobody marks a PM late, and there
+ * is no forgiving it later. It is simply the deadline having passed with
+ * nothing handed in, which stays true forever after: a week missed in
+ * March still reads as missed in June. A half-filled draft counts as
+ * late, because a draft is not a submission — it is what late looks
+ * like from the inside.
+ */
+export function latePms(
+  pms: PM[],
+  submissions: WeekSubmission[],
+  weekStart: string,
+  todayStr: string = today()
+): PM[] {
+  if (!isDeadlinePast(weekStart, todayStr)) return [];
+  return pms.filter((pm) => !isWeekSubmitted(submissions, pm.id, weekStart));
+}
+
+/**
+ * The day a payment is actually due.
+ *
+ * Most rows only know their week, and a week's last claim on a payment
+ * is its Sunday — so a row with no day is due at the end of its week
+ * rather than never. That is what lets dated and undated rows be sorted
+ * and judged late against each other at all.
+ */
+export const dueDay = (row: PaymentRow) => row.date ?? addDays(row.weekStart, 6);
+
+/**
+ * A payment whose moment has passed with nobody having dealt with it.
+ *
+ * Only Pending rows can be overdue: a paid row is done and a sent-back
+ * row is the PM's problem, not finance's. Takes the state rather than
+ * deriving it, because the caller has already worked it out and the
+ * submissions list is the one thing this file's helpers don't hold.
+ */
+export const isRowOverdue = (
+  row: PaymentRow,
+  state: PaymentState,
+  todayStr: string = today()
+) => state === "Pending" && dueDay(row) < todayStr;

@@ -25,8 +25,18 @@ import PaymentModal from "./PaymentModal";
 import ReopenRequestModal from "./ReopenRequestModal";
 import { usePayments } from "./PaymentsProvider";
 import { SortHeader, nextSort, sortRows, type Sort, type SortKey } from "./sorting";
-import { FAINT, MUTED, cell, headCell, numCell, subtotalCell } from "./sheet";
+import {
+  DANGER,
+  DANGER_TINT,
+  FAINT,
+  MUTED,
+  cell,
+  headCell,
+  numCell,
+  subtotalCell,
+} from "./sheet";
 import { money } from "@/lib/format";
+import { today } from "@/lib/dates";
 import {
   addWeeks,
   dayLabel,
@@ -40,7 +50,9 @@ import {
   STATE_LABEL,
   STATE_TAG,
   dayOrAny,
+  isDeadlinePast,
   isWeekSubmitted,
+  latePms,
   paymentState,
   pendingReopen,
   type PaymentRow,
@@ -146,6 +158,18 @@ export default function WeekReport({ week }: { week: string }) {
     paymentState(r, isWeekSubmitted(submissions, r.pmId, r.weekStart));
 
   const submittedCount = pms.filter((p) => pmState(p.id) === "submitted").length;
+
+  /**
+   * The deadline read once, and shared by every chip below.
+   *
+   * Thursday is not advice — a week nobody handed in is a week finance
+   * cannot pay, so once the Thursday is behind us the PMs who still owe
+   * it are named on the report rather than left looking like they simply
+   * have nothing scheduled.
+   */
+  const todayStr = today();
+  const deadlinePast = isDeadlinePast(week, todayStr);
+  const lateCount = latePms(pms, submissions, week, todayStr).length;
   const mine = weekRows.filter((r) => r.pmId === me.id);
   const myTotal = mine.reduce((sum, r) => sum + r.amount, 0);
   const mySentBack = mine.filter((r) => r.rejectedAt).length;
@@ -237,7 +261,7 @@ export default function WeekReport({ week }: { week: string }) {
           is how a payment sits untouched for a week.
         */}
         {state === "Rejected" && r.rejectionReason && (
-          <div style={{ fontSize: 11, color: "#b3261e", marginTop: 3, maxWidth: 220 }}>
+          <div style={{ fontSize: 11, color: DANGER, marginTop: 3, maxWidth: 220 }}>
             {r.rejectedBy && `Reason by ${r.rejectedBy}: `}
             &ldquo;{r.rejectionReason}&rdquo;
           </div>
@@ -314,7 +338,7 @@ export default function WeekReport({ week }: { week: string }) {
                 className="btn btn-ghost"
                 onClick={() => setDeleting(r)}
                 aria-label={`Delete ${r.reason}`}
-                style={{ color: "#b3261e" }}
+                style={{ color: DANGER }}
               >
                 <Trash2 size={14} />
               </button>
@@ -411,11 +435,18 @@ export default function WeekReport({ week }: { week: string }) {
               {submittedCount} of {pms.length}
             </strong>{" "}
             submitted
+            {lateCount > 0 && (
+              <span style={{ color: DANGER, fontWeight: 600 }}>
+                {" · "}
+                {lateCount} late
+              </span>
+            )}
           </span>
 
           <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {pms.map((pm) => {
               const state = pmState(pm.id);
+              const late = deadlinePast && state !== "submitted";
               const on = pmFilter.includes(pm.id);
               return (
                 <button
@@ -425,21 +456,35 @@ export default function WeekReport({ week }: { week: string }) {
                   title={
                     state === "submitted"
                       ? "Submitted — click to show only these rows"
-                      : state === "draft"
-                        ? "Started, not submitted yet"
-                        : "Nothing entered for this week"
+                      : late
+                        ? `Late — the schedule was due ${deadlineLabel(week)} and ${
+                            state === "draft"
+                              ? "this is still a draft"
+                              : "nothing has been entered"
+                          }`
+                        : state === "draft"
+                          ? "Started, not submitted yet"
+                          : "Nothing entered for this week"
                   }
                   style={{
                     gap: 5,
                     cursor: "pointer",
                     border: on ? "1px solid var(--color-accent)" : "1px solid transparent",
-                    opacity: state === "none" ? 0.55 : 1,
+                    // A late chip keeps its full weight — an empty week that is
+                    // also overdue is the loudest thing here, not the faintest.
+                    opacity: state === "none" && !late ? 0.55 : 1,
+                    ...(late ? { background: DANGER_TINT, color: DANGER } : null),
                   }}
                 >
                   {state === "submitted" && <Check size={11} />}
                   {pm.id === me.id ? "You" : pm.name}
-                  {state === "draft" && <span style={{ color: FAINT }}>draft</span>}
-                  {state === "none" && <span style={{ color: FAINT }}>—</span>}
+                  {late ? (
+                    <span style={{ fontWeight: 600 }}>late</span>
+                  ) : state === "draft" ? (
+                    <span style={{ color: FAINT }}>draft</span>
+                  ) : state === "none" ? (
+                    <span style={{ color: FAINT }}>—</span>
+                  ) : null}
                 </button>
               );
             })}
@@ -479,7 +524,7 @@ export default function WeekReport({ week }: { week: string }) {
                 {iSubmitted ? "Submitted" : "Draft"}
               </span>
               {mySentBack > 0 && (
-                <span style={{ color: "#b3261e" }}>
+                <span style={{ color: DANGER }}>
                   {" · "}
                   {mySentBack} sent back
                 </span>

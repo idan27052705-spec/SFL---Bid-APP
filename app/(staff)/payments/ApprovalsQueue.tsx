@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  AlarmClock,
   ArrowLeft,
   Check,
   FileText,
@@ -24,12 +25,15 @@ import {
   type Sort,
   type SortKey,
 } from "./sorting";
-import { MUTED, cell, headCell, numCell } from "./sheet";
+import { DANGER, MUTED, cell, headCell, numCell } from "./sheet";
 import { money } from "@/lib/format";
 import { formatDate, timeAgo } from "@/lib/format";
+import { dueLabel, today } from "@/lib/dates";
 import { weekLabel } from "@/lib/weeks";
 import {
   dayOrAny,
+  dueDay,
+  isRowOverdue,
   isWeekSubmitted,
   paymentState,
   type PaymentRow,
@@ -44,12 +48,23 @@ const SECTION_TITLE: React.CSSProperties = {
   marginBottom: 8,
 };
 
+/** The columns a payment waiting on finance is read in, in order. */
+const PENDING_COLUMNS: { label: string; key: SortKey; align?: "right" }[] = [
+  { label: "Due", key: "date" },
+  { label: "PM", key: "pmName" },
+  { label: "Project", key: "projectName" },
+  { label: "Pay to", key: "payTo" },
+  { label: "Reason for pay", key: "reason" },
+  { label: "Amount", key: "amount", align: "right" },
+];
+
 /**
  * What the person handling the money opens in the morning.
  *
- * Three questions, three lists, in the order they get asked: what needs me,
- * what is stuck with someone else, and what is already closed. Browsing
- * week by week to find open items is exactly what this replaces.
+ * Four questions, four lists, in the order they get asked: what should
+ * already be done, what needs me, what is stuck with someone else, and
+ * what is already closed. Browsing week by week to find open items is
+ * exactly what this replaces.
  *
  * Reopen requests sit above all of it whenever there are any. A PM whose
  * week is locked cannot get on with anything until one is answered, and
@@ -73,10 +88,37 @@ export default function ApprovalsQueue() {
   const stateOf = (r: PaymentRow) =>
     paymentState(r, isWeekSubmitted(submissions, r.pmId, r.weekStart));
 
-  const waiting = useMemo(
-    () => sortRows(rows.filter((r) => stateOf(r) === "Pending"), sort),
+  /** One clock for the whole screen — every list below is judged against it. */
+  const todayStr = today();
+
+  /**
+   * The payments whose day has been and gone with nobody having paid them
+   * or sent them back. They are lifted out of the waiting list rather than
+   * flagged inside it: a queue where the urgent thing is somewhere in the
+   * middle, in a different colour, is a queue you have to read all of.
+   *
+   * Oldest first, and not re-sortable — there is exactly one order worth
+   * reading this list in, and it is the order the phone calls will come in.
+   */
+  const overdue = useMemo(
+    () =>
+      rows
+        .filter((r) => isRowOverdue(r, stateOf(r), todayStr))
+        .sort((a, b) => dueDay(a).localeCompare(dueDay(b))),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rows, submissions, sort]
+    [rows, submissions, todayStr]
+  );
+
+  const waiting = useMemo(
+    () =>
+      sortRows(
+        rows.filter(
+          (r) => stateOf(r) === "Pending" && !isRowOverdue(r, "Pending", todayStr)
+        ),
+        sort
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, submissions, sort, todayStr]
   );
 
   const sentBack = useMemo(
@@ -106,6 +148,7 @@ export default function ApprovalsQueue() {
   );
 
   const waitingTotal = waiting.reduce((s, r) => s + r.amount, 0);
+  const overdueTotal = overdue.reduce((s, r) => s + r.amount, 0);
   const missingProof = paid.filter((r) => !r.proofs?.length).length;
 
   const onSort = (key: SortKey) => setSort((s) => nextSort(s, key));
@@ -124,16 +167,150 @@ export default function ApprovalsQueue() {
     );
   }
 
-  /** The Due cell doubles as the way back into the week it belongs to. */
-  const dueCell = (r: PaymentRow) => (
+  /**
+   * The Due cell doubles as the way back into the week it belongs to.
+   *
+   * On an overdue row it also says how long it has been sitting there —
+   * "4 days overdue" is the sentence somebody is about to say on the
+   * phone, and it belongs on the row rather than in the reader's head.
+   */
+  const dueCell = (r: PaymentRow, late = false) => (
     <td style={{ ...cell, whiteSpace: "nowrap" }}>
-      <span style={r.date ? undefined : { color: MUTED }}>{dayOrAny(r.date)}</span>
+      <span
+        style={
+          late
+            ? { color: DANGER, fontWeight: 600 }
+            : r.date
+              ? undefined
+              : { color: MUTED }
+        }
+      >
+        {dayOrAny(r.date)}
+      </span>
       <div style={{ fontSize: 11 }}>
         <Link className="rowlink" href={`/payments/${r.weekStart}`} style={{ color: MUTED }}>
           {weekLabel(r.weekStart)}
         </Link>
+        {late && (
+          <span style={{ color: DANGER }}> · {dueLabel(dueDay(r))}</span>
+        )}
       </div>
     </td>
+  );
+
+  /**
+   * Overdue and Waiting are the same table twice — same columns, same two
+   * buttons, same total — so they are built once. Only what carries
+   * meaning differs: the overdue copy is pinned oldest-first instead of
+   * sortable, and its due cell is red.
+   */
+  const pendingTable = ({
+    list,
+    total,
+    totalLabel,
+    late = false,
+    empty,
+  }: {
+    list: PaymentRow[];
+    total: number;
+    totalLabel: string;
+    late?: boolean;
+    empty?: string;
+  }) => (
+    <Blueprint style={{ padding: "12px 18px 14px" }}>
+      <div className="tablewrap">
+        <table className="table" style={{ minWidth: 1020, borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              {PENDING_COLUMNS.map((col) =>
+                late ? (
+                  <th
+                    key={col.key}
+                    style={{ ...headCell, textAlign: col.align ?? "left" }}
+                  >
+                    {col.label}
+                  </th>
+                ) : (
+                  <SortHeader
+                    key={col.key}
+                    label={col.label}
+                    sortKey={col.key}
+                    sort={sort}
+                    onSort={onSort}
+                    align={col.align}
+                  />
+                )
+              )}
+              <th style={{ ...headCell, width: 176 }} />
+            </tr>
+          </thead>
+          <tbody>
+            {list.length === 0 ? (
+              <tr>
+                <td style={{ ...cell, color: MUTED }} colSpan={7}>
+                  {empty}
+                </td>
+              </tr>
+            ) : (
+              list.map((r) => (
+                <tr key={r.id}>
+                  {dueCell(r, late)}
+                  <td style={{ ...cell, whiteSpace: "nowrap" }}>{r.pmName}</td>
+                  <td style={cell}>{r.projectName}</td>
+                  <td style={cell}>{r.payTo || "—"}</td>
+                  <td style={cell}>{r.reason}</td>
+                  <td style={numCell} className="tabular">
+                    {money(r.amount)}
+                  </td>
+                  <td style={{ ...cell, whiteSpace: "nowrap", textAlign: "right" }}>
+                    <button className="btn btn-primary" onClick={() => setPaying(r)}>
+                      <Check size={14} /> Mark paid
+                    </button>{" "}
+                    <button
+                      className="btn btn-ghost"
+                      onClick={() => setRejecting(r)}
+                      title="Send back to the PM"
+                      style={{ color: DANGER }}
+                    >
+                      <X size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+          {list.length > 0 && (
+            <tfoot>
+              <tr>
+                <td
+                  style={{
+                    ...cell,
+                    fontFamily: "var(--font-heading)",
+                    fontWeight: 600,
+                  }}
+                  colSpan={5}
+                >
+                  {totalLabel}
+                </td>
+                <td
+                  style={{
+                    ...numCell,
+                    fontFamily: "var(--font-heading)",
+                    fontWeight: 600,
+                    fontSize: 15,
+                    color: late ? DANGER : undefined,
+                  }}
+                  className="tabular"
+                >
+                  {money(total)}
+                </td>
+                <td style={cell} />
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+    </Blueprint>
   );
 
   /** One line per file — the count is part of what the cell has to say. */
@@ -191,6 +368,12 @@ export default function ApprovalsQueue() {
             {waiting.length} waiting
           </strong>
           {waiting.length > 0 && ` · ${money(waitingTotal)}`}
+          {overdue.length > 0 && (
+            <span style={{ color: DANGER, fontWeight: 600 }}>
+              {" · "}
+              {overdue.length} overdue
+            </span>
+          )}
           {reopens.length > 0 &&
             ` · ${reopens.length} reopen request${reopens.length === 1 ? "" : "s"}`}
           {sentBack.length > 0 && ` · ${sentBack.length} sent back`}
@@ -199,7 +382,22 @@ export default function ApprovalsQueue() {
         </div>
       </header>
 
-      <div className="pagebody" style={{ padding: "24px 28px 40px", display: "grid", gap: 26 }}>
+      {/*
+        minmax(0, 1fr), not the default auto: an auto track is sized by its
+        widest content, so the 1020px-wide tables stretched this grid to
+        1058px and the whole page scrolled sideways on a phone — the one
+        thing the tables scroll inside their own box to avoid. The same
+        trick keeps the app shell honest in globals.css.
+      */}
+      <div
+        className="pagebody"
+        style={{
+          padding: "24px 28px 40px",
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr)",
+          gap: 26,
+        }}
+      >
         {/* — somebody is locked out until this is answered — */}
         {reopens.length > 0 && (
           <section>
@@ -263,117 +461,34 @@ export default function ApprovalsQueue() {
           </section>
         )}
 
+        {/* — what should already be done — */}
+        {overdue.length > 0 && (
+          <section>
+            <div style={{ ...SECTION_TITLE, color: DANGER }}>
+              <AlarmClock size={13} style={{ verticalAlign: -2, marginRight: 5 }} />
+              Overdue
+            </div>
+            {pendingTable({
+              list: overdue,
+              total: overdueTotal,
+              totalLabel: "Overdue total",
+              late: true,
+            })}
+          </section>
+        )}
+
         {/* — what needs me — */}
         <section>
           <div style={SECTION_TITLE}>Waiting to be paid</div>
-          <Blueprint style={{ padding: "12px 18px 14px" }}>
-            <div className="tablewrap">
-              <table
-                className="table"
-                style={{ minWidth: 1020, borderCollapse: "collapse" }}
-              >
-                <thead>
-                  <tr>
-                    <SortHeader label="Due" sortKey="date" sort={sort} onSort={onSort} />
-                    <SortHeader label="PM" sortKey="pmName" sort={sort} onSort={onSort} />
-                    <SortHeader
-                      label="Project"
-                      sortKey="projectName"
-                      sort={sort}
-                      onSort={onSort}
-                    />
-                    <SortHeader
-                      label="Pay to"
-                      sortKey="payTo"
-                      sort={sort}
-                      onSort={onSort}
-                    />
-                    <SortHeader
-                      label="Reason for pay"
-                      sortKey="reason"
-                      sort={sort}
-                      onSort={onSort}
-                    />
-                    <SortHeader
-                      label="Amount"
-                      sortKey="amount"
-                      sort={sort}
-                      onSort={onSort}
-                      align="right"
-                    />
-                    <th style={{ ...headCell, width: 176 }} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {waiting.length === 0 ? (
-                    <tr>
-                      <td style={{ ...cell, color: MUTED }} colSpan={7}>
-                        Nothing waiting. Payments arrive here when a PM submits their
-                        week.
-                      </td>
-                    </tr>
-                  ) : (
-                    waiting.map((r) => (
-                      <tr key={r.id}>
-                        {dueCell(r)}
-                        <td style={{ ...cell, whiteSpace: "nowrap" }}>{r.pmName}</td>
-                        <td style={cell}>{r.projectName}</td>
-                        <td style={cell}>{r.payTo || "—"}</td>
-                        <td style={cell}>{r.reason}</td>
-                        <td style={numCell} className="tabular">
-                          {money(r.amount)}
-                        </td>
-                        <td style={{ ...cell, whiteSpace: "nowrap", textAlign: "right" }}>
-                          <button
-                            className="btn btn-primary"
-                            onClick={() => setPaying(r)}
-                          >
-                            <Check size={14} /> Mark paid
-                          </button>{" "}
-                          <button
-                            className="btn btn-ghost"
-                            onClick={() => setRejecting(r)}
-                            title="Send back to the PM"
-                            style={{ color: "#b3261e" }}
-                          >
-                            <X size={14} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-                {waiting.length > 0 && (
-                  <tfoot>
-                    <tr>
-                      <td
-                        style={{
-                          ...cell,
-                          fontFamily: "var(--font-heading)",
-                          fontWeight: 600,
-                        }}
-                        colSpan={5}
-                      >
-                        Waiting total
-                      </td>
-                      <td
-                        style={{
-                          ...numCell,
-                          fontFamily: "var(--font-heading)",
-                          fontWeight: 600,
-                          fontSize: 15,
-                        }}
-                        className="tabular"
-                      >
-                        {money(waitingTotal)}
-                      </td>
-                      <td style={cell} />
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
-            </div>
-          </Blueprint>
+          {pendingTable({
+            list: waiting,
+            total: waitingTotal,
+            totalLabel: "Waiting total",
+            empty:
+              overdue.length > 0
+                ? "Nothing else waiting — everything still open is overdue, above."
+                : "Nothing waiting. Payments arrive here when a PM submits their week.",
+          })}
         </section>
 
         {/* — stuck with someone else — */}

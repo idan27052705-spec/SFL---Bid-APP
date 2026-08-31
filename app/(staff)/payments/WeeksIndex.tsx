@@ -13,9 +13,10 @@ import {
   weekLabel,
   weekOffset,
 } from "@/lib/weeks";
-import { MUTED, cell, headCell, numCell } from "./sheet";
+import { DANGER, MUTED, cell, headCell, numCell } from "./sheet";
 import { usePayments } from "./PaymentsProvider";
-import { isWeekSubmitted, paymentState } from "@/lib/payments";
+import { today } from "@/lib/dates";
+import { isWeekSubmitted, latePms, paymentState } from "@/lib/payments";
 
 /** Two weeks ahead is enough to get a jump on a holiday week. */
 const AHEAD = 2;
@@ -49,6 +50,8 @@ export default function WeeksIndex() {
   const router = useRouter();
 
   const current = defaultWeekStart();
+  /** One clock for the whole list, so every row is judged against the same day. */
+  const todayStr = today();
 
   /** Submitted, not yet paid or sent back — the finance queue's size. */
   const waiting = rows.filter(
@@ -132,6 +135,7 @@ export default function WeeksIndex() {
                   ).length;
                   const isCurrent = monday === current;
                   const complete = submitted === pms.length && pms.length > 0;
+                  const late = latePms(pms, submissions, monday, todayStr).length;
 
                   return (
                     <tr
@@ -166,6 +170,13 @@ export default function WeeksIndex() {
                       <td style={{ ...numCell, fontSize: 13 }} className="tabular">
                         {weekRows.length || "—"}
                       </td>
+                      {/*
+                        The count reads the same as it always did; the red
+                        line under it is the part that has to travel across
+                        the room. A dozen weeks of tags all shouting would
+                        say nothing, so the tag stays calm and only the
+                        weeks whose Thursday has gone carry the number.
+                      */}
                       <td style={cell}>
                         {complete ? (
                           <span className="tag tag-accent">All {pms.length} in</span>
@@ -175,6 +186,16 @@ export default function WeeksIndex() {
                           </span>
                         ) : (
                           <span style={{ color: MUTED, fontSize: 13 }}>Nothing yet</span>
+                        )}
+                        {late > 0 && (
+                          <div
+                            style={{ fontSize: 11, color: DANGER, fontWeight: 600, marginTop: 3 }}
+                            title={`${late} PM${late === 1 ? "" : "s"} missed the ${deadlineLabel(
+                              monday
+                            )} deadline`}
+                          >
+                            {late} late
+                          </div>
                         )}
                       </td>
                       <td

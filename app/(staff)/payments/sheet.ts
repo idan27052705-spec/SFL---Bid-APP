@@ -33,3 +33,12 @@ export const subtotalCell: React.CSSProperties = {
 
 export const MUTED = "color-mix(in srgb, var(--color-text) 55%, transparent)";
 export const FAINT = "color-mix(in srgb, var(--color-text) 45%, transparent)";
+
+/**
+ * The one red in the app — a row sent back, a deadline missed, a payment
+ * that should already have gone out. It is spent sparingly on purpose: a
+ * screen where three things are red is a screen where nothing is.
+ */
+export const DANGER = "#b3261e";
+/** The same red as a wash, for a chip that has to carry it as a background. */
+export const DANGER_TINT = `color-mix(in srgb, ${DANGER} 14%, transparent)`;
