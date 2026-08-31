@@ -52,6 +52,29 @@ export type WeekSubmission = {
   submittedAt: string | null;
 };
 
+/**
+ * A PM asking for a week they already handed in to be unlocked.
+ *
+ * Submitting is a signature, and a signature you can quietly take back is
+ * not one. The week report is what the money gets paid from, so the totals
+ * on it have to be the totals the PM stood behind at the moment they signed
+ * — otherwise a week can change under finance while they are paying it, and
+ * nobody can say afterwards which version was agreed. So the PM asks, and
+ * whoever handles the money decides; the message is all they decide on.
+ */
+export type ReopenRequest = {
+  id: string;
+  pmId: string;
+  pmName: string;
+  /** Monday of the week they want back. */
+  weekStart: string;
+  message: string;
+  createdAt: string;
+  status: "pending" | "approved" | "declined";
+  resolvedAt?: string;
+  resolvedBy?: string;
+};
+
 export const PAYMENT_STATES = ["Draft", "Pending", "Paid", "Rejected"] as const;
 export type PaymentState = (typeof PAYMENT_STATES)[number];
 
@@ -95,4 +118,14 @@ export const isWeekSubmitted = (
 ) =>
   submissions.some(
     (s) => s.pmId === pmId && s.weekStart === weekStart && s.submittedAt
+  );
+
+/** The reopen this PM is still waiting on for this week, if any. */
+export const pendingReopen = (
+  requests: ReopenRequest[],
+  pmId: string,
+  weekStart: string
+) =>
+  requests.find(
+    (r) => r.pmId === pmId && r.weekStart === weekStart && r.status === "pending"
   );

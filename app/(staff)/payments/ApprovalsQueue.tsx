@@ -7,6 +7,7 @@ import {
   Check,
   FileText,
   ImageIcon,
+  LockOpen,
   Paperclip,
   Undo2,
   X,
@@ -18,7 +19,7 @@ import { usePayments, type PaidDetails } from "./PaymentsProvider";
 import { SortHeader, nextSort, sortRows, type Sort, type SortKey } from "./sorting";
 import { MUTED, cell, headCell, numCell } from "./sheet";
 import { money } from "@/lib/format";
-import { formatDate } from "@/lib/format";
+import { formatDate, timeAgo } from "@/lib/format";
 import { dayLabel, weekLabel } from "@/lib/weeks";
 import { isWeekSubmitted, paymentState, type PaymentRow } from "@/lib/payments";
 
@@ -37,9 +38,21 @@ const SECTION_TITLE: React.CSSProperties = {
  * Three questions, three lists, in the order they get asked: what needs me,
  * what is stuck with someone else, and what is already closed. Browsing
  * week by week to find open items is exactly what this replaces.
+ *
+ * Reopen requests sit above all of it whenever there are any. A PM whose
+ * week is locked cannot get on with anything until one is answered, and
+ * answering one takes a second — so it goes first, not last.
  */
 export default function ApprovalsQueue() {
-  const { rows, submissions, isFinance, markPaid, rejectRow } = usePayments();
+  const {
+    rows,
+    submissions,
+    reopenRequests,
+    isFinance,
+    markPaid,
+    rejectRow,
+    resolveReopenRequest,
+  } = usePayments();
 
   const [sort, setSort] = useState<Sort>({ key: "date", dir: "asc" });
   const [paying, setPaying] = useState<PaymentRow | null>(null);
@@ -69,6 +82,15 @@ export default function ApprovalsQueue() {
         .filter((r) => r.paidAt)
         .sort((a, b) => (b.paidAt ?? "").localeCompare(a.paidAt ?? "")),
     [rows]
+  );
+
+  /** Oldest first — the PM who has been stuck longest gets answered first. */
+  const reopens = useMemo(
+    () =>
+      reopenRequests
+        .filter((r) => r.status === "pending")
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    [reopenRequests]
   );
 
   const waitingTotal = waiting.reduce((s, r) => s + r.amount, 0);
@@ -143,6 +165,8 @@ export default function ApprovalsQueue() {
             {waiting.length} waiting
           </strong>
           {waiting.length > 0 && ` · ${money(waitingTotal)}`}
+          {reopens.length > 0 &&
+            ` · ${reopens.length} reopen request${reopens.length === 1 ? "" : "s"}`}
           {sentBack.length > 0 && ` · ${sentBack.length} sent back`}
           {paid.length > 0 && ` · ${paid.length} paid`}
           {missingProof > 0 && ` · ${missingProof} with no proof`}
@@ -150,6 +174,69 @@ export default function ApprovalsQueue() {
       </header>
 
       <div className="pagebody" style={{ padding: "24px 28px 40px", display: "grid", gap: 26 }}>
+        {/* — somebody is locked out until this is answered — */}
+        {reopens.length > 0 && (
+          <section>
+            <div style={SECTION_TITLE}>
+              <LockOpen size={13} style={{ verticalAlign: -2, marginRight: 5 }} />
+              Reopen requests
+            </div>
+            <Blueprint style={{ padding: "12px 18px 14px" }}>
+              <div className="tablewrap">
+                <table
+                  className="table"
+                  style={{ minWidth: 900, borderCollapse: "collapse" }}
+                >
+                  <thead>
+                    <tr>
+                      <th style={headCell}>PM</th>
+                      <th style={headCell}>Week</th>
+                      <th style={headCell}>Why they need it</th>
+                      <th style={{ ...headCell, width: 232 }} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reopens.map((req) => (
+                      <tr key={req.id}>
+                        <td style={{ ...cell, whiteSpace: "nowrap" }}>
+                          {req.pmName}
+                        </td>
+                        <td style={{ ...cell, whiteSpace: "nowrap" }}>
+                          <Link className="rowlink" href={`/payments/${req.weekStart}`}>
+                            {weekLabel(req.weekStart)}
+                          </Link>
+                          <div style={{ fontSize: 11, color: MUTED }}>
+                            {timeAgo(req.createdAt)}
+                          </div>
+                        </td>
+                        <td style={cell}>{req.message}</td>
+                        <td
+                          style={{ ...cell, whiteSpace: "nowrap", textAlign: "right" }}
+                        >
+                          <button
+                            className="btn btn-primary"
+                            onClick={() => resolveReopenRequest(req.id, true)}
+                            title="Drop the week back to draft so they can edit and submit it again"
+                          >
+                            <LockOpen size={14} /> Approve &amp; reopen
+                          </button>{" "}
+                          <button
+                            className="btn btn-ghost"
+                            onClick={() => resolveReopenRequest(req.id, false)}
+                            title="Leave the week submitted"
+                          >
+                            Decline
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Blueprint>
+          </section>
+        )}
+
         {/* — what needs me — */}
         <section>
           <div style={SECTION_TITLE}>Waiting to be paid</div>

@@ -40,6 +40,7 @@ export default async function PaymentsLayout({
       isFinance={SIGNED_IN_USER_IS_FINANCE}
       initialRows={seedPayments()}
       initialSubmissions={seedSubmissions()}
+      initialReopenRequests={[]}
     >
       {children}
     </PaymentsProvider>

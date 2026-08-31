@@ -11,6 +11,7 @@ import {
   ChevronRight,
   FileText,
   ImageIcon,
+  LockOpen,
   Pencil,
   Plus,
   Printer,
@@ -21,6 +22,7 @@ import Blueprint from "@/components/Blueprint";
 import FilterMenu from "@/components/FilterMenu";
 import ConfirmModal from "@/components/ConfirmModal";
 import PaymentModal from "./PaymentModal";
+import ReopenRequestModal from "./ReopenRequestModal";
 import { usePayments } from "./PaymentsProvider";
 import { SortHeader, nextSort, sortRows, type Sort, type SortKey } from "./sorting";
 import { FAINT, MUTED, cell, headCell, numCell, subtotalCell } from "./sheet";
@@ -39,8 +41,10 @@ import {
   STATE_TAG,
   isWeekSubmitted,
   paymentState,
+  pendingReopen,
   type PaymentRow,
 } from "@/lib/payments";
+import { canEditRow } from "@/lib/paymentsGuard";
 
 type PmState = "submitted" | "draft" | "none";
 
@@ -55,9 +59,11 @@ export default function WeekReport({ week }: { week: string }) {
     isFinance,
     rows,
     submissions,
+    reopenRequests,
     saveRow,
     removeRow,
     setSubmitted,
+    requestReopen,
   } = usePayments();
   const router = useRouter();
 
@@ -71,6 +77,7 @@ export default function WeekReport({ week }: { week: string }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<PaymentRow | null>(null);
   const [deleting, setDeleting] = useState<PaymentRow | null>(null);
+  const [askingReopen, setAskingReopen] = useState(false);
 
   const days = weekDays(week);
 
@@ -125,20 +132,12 @@ export default function WeekReport({ week }: { week: string }) {
   const mySentBack = mine.filter((r) => r.rejectedAt).length;
   const iSubmitted = pmState(me.id) === "submitted";
 
-  /**
-   * Your own rows lock once you hand the week in — that is what makes the
-   * submission mean anything. Two exceptions matter: a row sent back has to
-   * be fixable or the loop never closes, and a paid row is a closed record.
-   * An owner is never locked out, because someone has to be able to undo a
-   * mistake.
-   */
-  const canEdit = (row: PaymentRow) => {
-    if (!canWrite) return false;
-    if (isOwner) return true;
-    if (row.paidAt) return false;
-    if (row.rejectedAt) return row.pmId === me.id;
-    return row.pmId === me.id && !iSubmitted;
-  };
+  /** My outstanding ask to have this week unlocked, if I have made one. */
+  const myReopen = pendingReopen(reopenRequests, me.id, week);
+
+  /** Every permission question in the app is answered in lib/paymentsGuard. */
+  const canEdit = (row: PaymentRow) =>
+    canEditRow({ row, meId: me.id, isOwner, canWrite, weekSubmitted: iSubmitted });
 
   const togglePm = (pmId: string) =>
     setPmFilter((f) => (f.includes(pmId) ? f.filter((x) => x !== pmId) : [...f, pmId]));
@@ -446,13 +445,33 @@ export default function WeekReport({ week }: { week: string }) {
               )}
             </span>
 
+            {/*
+              Handing the week in is final from this side — the way out is to
+              ask the admin, so the report finance reads cannot change under
+              them without somebody agreeing to it.
+            */}
             {iSubmitted ? (
-              <button
-                className="btn btn-secondary"
-                onClick={() => setSubmitted(week, null)}
-              >
-                Reopen
-              </button>
+              myReopen ? (
+                <span
+                  title={myReopen.message}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    color: MUTED,
+                  }}
+                >
+                  <LockOpen size={14} /> Reopen requested — waiting for approval
+                </span>
+              ) : (
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setAskingReopen(true)}
+                  title="Ask whoever handles the payments to unlock this week"
+                >
+                  <LockOpen size={15} /> Request to reopen
+                </button>
+              )
             ) : (
               <button
                 className="btn btn-primary"
@@ -691,6 +710,14 @@ export default function WeekReport({ week }: { week: string }) {
             setDeleting(null);
           }}
           onClose={() => setDeleting(null)}
+        />
+      )}
+
+      {askingReopen && (
+        <ReopenRequestModal
+          week={week}
+          onConfirm={(message) => requestReopen(week, message)}
+          onClose={() => setAskingReopen(false)}
         />
       )}
     </>
