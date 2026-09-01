@@ -137,6 +137,10 @@ export default function LoginForm() {
           {busy ? "Signing in…" : "Sign in"}
         </button>
 
+        <div style={{ fontSize: 13, textAlign: "center" }}>
+          <a href="/forgot-password">Forgotten your password?</a>
+        </div>
+
         <div className="text-muted" style={{ fontSize: 12, textAlign: "center" }}>
           Subcontractor?{" "}
           <a href="/portal">Use the sub portal</a> — you need your access code, not a password.

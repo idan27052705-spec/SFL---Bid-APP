@@ -207,7 +207,6 @@ export function TeamEditor({ isOwner }: { isOwner: boolean }) {
   const [form, setForm] = useState({ name: "", email: "", role: "pm" });
   const [created, setCreated] = useState<{
     email: string;
-    password: string;
     emailed: boolean;
     emailError: string | null;
   } | null>(null);
@@ -232,7 +231,6 @@ export function TeamEditor({ isOwner }: { isOwner: boolean }) {
     setForm({ name: "", email: "", role: "pm" });
     setCreated({
       email: data.email,
-      password: data.password,
       emailed: Boolean(data.emailed),
       emailError: data.emailError ?? null,
     });
@@ -256,7 +254,7 @@ export function TeamEditor({ isOwner }: { isOwner: boolean }) {
       {inviting && (
         <Modal
           title="Invite a teammate"
-          subtitle="They get an account straight away, and the sign-in details by email."
+          subtitle="They get an email with a link to choose their own password."
           onClose={() => setInviting(false)}
           footer={
             <>
@@ -308,12 +306,8 @@ export function TeamEditor({ isOwner }: { isOwner: boolean }) {
 
       {created && (
         <Modal
-          title="Account created"
-          subtitle={
-            created.emailed
-              ? `Emailed to ${created.email}. Here it is too, in case they don't get it.`
-              : "The account is ready — the email didn't go out, so pass these on yourself."
-          }
+          title={created.emailed ? "Invitation sent" : "Account created"}
+          subtitle={created.email}
           onClose={() => setCreated(null)}
           footer={
             <button className="btn btn-primary" onClick={() => setCreated(null)}>
@@ -321,31 +315,32 @@ export function TeamEditor({ isOwner }: { isOwner: boolean }) {
             </button>
           }
         >
-          <div className="field">
-            <label>Email</label>
-            <div className="mono" style={{ fontSize: 15 }}>{created.email}</div>
-          </div>
-          <div className="field">
-            <label>One-time password</label>
-            <div className="mono" style={{ fontSize: 20, letterSpacing: ".04em" }}>
-              {created.password}
-            </div>
-          </div>
-          {!created.emailed && (
-            <p style={{ fontSize: 13, margin: 0, color: "#b3261e" }}>
-              {created.emailError ?? "The invitation email didn't send."}
-            </p>
+          {created.emailed ? (
+            <>
+              <p style={{ fontSize: 14, margin: 0 }}>
+                They&apos;ve been emailed a link to choose their own password. It
+                works once and expires in an hour.
+              </p>
+              <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+                If it doesn&apos;t arrive, tell them to look in spam — or they can
+                get a fresh one themselves from{" "}
+                <strong>Forgotten password</strong> on the sign-in page.
+              </p>
+            </>
+          ) : (
+            <>
+              <p style={{ fontSize: 14, margin: 0 }}>
+                The account exists, but the invitation email didn&apos;t go out.
+              </p>
+              <p style={{ fontSize: 13, margin: 0, color: "#b3261e" }}>
+                {created.emailError ?? "The email failed to send."}
+              </p>
+              <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+                They can still get in: send them to the sign-in page and have
+                them use <strong>Forgotten password</strong> with this address.
+              </p>
+            </>
           )}
-          <p style={{ fontSize: 13, margin: 0 }}>
-            <strong>Write this down now.</strong> It isn&apos;t stored anywhere you
-            can read it back, and it only works until they change it.
-          </p>
-          <button
-            className="btn btn-secondary"
-            onClick={() => navigator.clipboard?.writeText(created.password)}
-          >
-            Copy password
-          </button>
         </Modal>
       )}
     </>

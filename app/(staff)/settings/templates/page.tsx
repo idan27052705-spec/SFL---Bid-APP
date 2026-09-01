@@ -23,6 +23,7 @@ const TABS = [
   ["reminder", "Reminder"],
   ["award", "Award"],
   ["team_invite", "New team member"],
+  ["password_reset", "Password reset"],
 ] as const;
 
 const SUB_KINDS = ["invite", "reminder", "award"];
@@ -32,17 +33,19 @@ const WHEN: Record<string, string> = {
   reminder: "Sent when you nudge a sub who hasn't priced yet, one at a time or in bulk.",
   award: "Sent to the winner when you award a package. Nothing is sent to the others.",
   team_invite:
-    "Sent to a project manager of yours when you add them on Team & roles — with the address they sign in with and a one-time password.",
+    "Sent when you add someone on Team & roles, with a one-time link for them to choose their own password.",
+  password_reset:
+    "Sent when anyone on your team uses Forgotten password on the sign-in page. Nobody has to ask you for it.",
 };
 
 /** For the team invitation, which knows nothing about bids or subs. */
 const TEAM_FIELDS: [string, string, string][] = [
   ["{name}", "Their name", "Meni Menashe"],
   ["{email}", "The address they sign in with", "meni@sflbuildersgroup.com"],
-  ["{temporary_password}", "One-time password, for the first sign-in only", "Sfl-8Kq2mZt4"],
-  ["{sign_in_url}", "Where to sign in", "bids.sflbuildersgroup.com/login"],
+  ["{set_password_url}", "One-time link to choose a password (1 hour)", "bids.sflbuildersgroup.com/set-password?…"],
+  ["{sign_in_url}", "Where to sign in afterwards", "bids.sflbuildersgroup.com/login"],
   ["{role}", "Admin or Project manager", "Project manager"],
-  ["{invited_by}", "Who added them", "Idan Nagary"],
+  ["{invited_by}", "Who added them (invitation only)", "Idan Nagary"],
   ["{company_name}", "Your company", "SFL Builders Group"],
   ["{company_phone}", "Your office phone", "(954) 555-0100"],
 ];
@@ -78,7 +81,13 @@ export default async function TemplatesPage({
 
   const current = (templates ?? []).find((t) => t.kind === tab);
   const isTeam = !SUB_KINDS.includes(tab);
-  const fields = isTeam ? TEAM_FIELDS : BUILT_IN;
+  const fields = isTeam
+    ? TEAM_FIELDS.filter(
+        ([token]) =>
+          tab !== "password_reset" ||
+          !["{role}", "{invited_by}"].includes(token)
+      )
+    : BUILT_IN;
   const customFields = (settings?.custom_fields ?? []) as CustomField[];
 
   return (

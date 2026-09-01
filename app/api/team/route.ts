@@ -1,21 +1,18 @@
 import { NextResponse } from "next/server";
-import { randomBytes } from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireApiUser, forbidden, badRequest } from "@/lib/api";
 import { wrongOrigin } from "@/lib/guard";
 import { APP_ROLES, DEFAULT_PM_ACCESS, ROLE_LABEL, type AppRole } from "@/app/config";
-import { getCompany } from "@/lib/company";
-import { renderTemplate, sendEmail, siteUrl } from "@/lib/email";
+import { createPasswordLink, sendPasswordEmail } from "@/lib/passwordLink";
 
 /**
  * POST /api/team — add a teammate. Owners only.
  *
- * Creates the account outright with a one-time password, emails it to
- * them from the company's own address, and returns it as well. Both,
- * deliberately: mail bounces and sits in spam, and the person is often
- * in the same office — so whoever added them can simply read it out.
- * They change it on My account.
+ * Creates the account and emails them a one-time link to choose their
+ * own password. No password is generated, shown or stored: one that
+ * travels by email can be used by anyone who can read that inbox, and
+ * one read out loud tends to stay written on a desk.
  *
  * The wording lives in the team_invite template, edited on Templates,
  * apart from the three that are written to subcontractors.
@@ -50,11 +47,11 @@ export async function POST(request: Request) {
   if (existing) return badRequest("Someone with that email is already on the team.");
 
   const admin = createAdminClient();
-  const password = `Sfl-${randomBytes(9).toString("base64url")}`;
 
+  // No password at all — they set one from the link below. Confirming
+  // the address here is what lets that link be issued straight away.
   const { data: created, error: authError } = await admin.auth.admin.createUser({
     email,
-    password,
     email_confirm: true,
   });
 
@@ -90,41 +87,30 @@ export async function POST(request: Request) {
   /**
    * The account exists either way — a mail failure must not undo it, or
    * we would delete a working account because Resend had a bad minute.
-   * The caller is told what happened and still gets the password.
+   * The caller is told plainly, and can send the invitation again.
    */
   let emailed = false;
   let emailError: string | null = null;
 
-  const { data: template } = await supabase
-    .from("email_templates")
-    .select("subject, body")
-    .eq("kind", "team_invite")
-    .maybeSingle();
+  const link = await createPasswordLink(email);
 
-  if (template) {
-    const company = await getCompany(user.companyId);
-    const fields = {
-      name,
-      email,
-      temporary_password: password,
-      sign_in_url: `${siteUrl()}/login`,
-      role: ROLE_LABEL[appRole as AppRole],
-      invited_by: user.name,
-      company_name: company.name,
-      company_phone: company.phone,
-    };
-
-    const result = await sendEmail({
-      companyId: user.companyId,
-      to: email,
-      subject: renderTemplate(template.subject, fields),
-      text: renderTemplate(template.body, fields),
-    });
-
-    emailed = result.ok;
-    if (!result.ok) emailError = result.error;
+  if (!link.ok) {
+    emailError = "Couldn't create the sign-in link. Send the invitation again.";
   } else {
-    emailError = "No team invitation template yet — nothing was sent.";
+    const sent = await sendPasswordEmail({
+      kind: "team_invite",
+      to: email,
+      companyId: user.companyId,
+      fields: {
+        name,
+        email,
+        set_password_url: link.url,
+        role: ROLE_LABEL[appRole as AppRole],
+        invited_by: user.name,
+      },
+    });
+    emailed = sent.ok;
+    if (!sent.ok) emailError = sent.error;
   }
 
   await supabase.from("activity").insert({
@@ -135,5 +121,5 @@ export async function POST(request: Request) {
     actor_id: user.id,
   });
 
-  return NextResponse.json({ ok: true, password, email, emailed, emailError });
+  return NextResponse.json({ ok: true, email, emailed, emailError });
 }

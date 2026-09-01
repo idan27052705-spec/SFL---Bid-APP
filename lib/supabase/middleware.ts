@@ -2,7 +2,17 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 /** Public routes — everything else requires a signed-in staff user. */
-const PUBLIC = ["/login", "/auth", "/portal", "/api/portal"];
+const PUBLIC = [
+  "/login",
+  "/auth",
+  "/portal",
+  "/api/portal",
+  // Setting a password proves who you are with the link itself, so these
+  // have to work for someone who is signed out — that is the whole point.
+  "/forgot-password",
+  "/set-password",
+  "/api/auth",
+];
 
 /**
  * The path, passed on as a header.

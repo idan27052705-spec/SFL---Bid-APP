@@ -20,7 +20,7 @@ export async function PATCH(request: Request) {
 
   if (body.kind) {
     const kind = String(body.kind);
-    if (!["invite", "reminder", "award", "team_invite"].includes(kind))
+    if (!["invite", "reminder", "award", "team_invite", "password_reset"].includes(kind))
       return badRequest("Unknown template.");
 
     const subject = String(body.subject ?? "").trim();
