@@ -19,7 +19,7 @@ export default async function AccountSettingsPage() {
         <AccountForm
           name={user.name}
           email={user.email}
-          role={user.role}
+          role={user.appRole}
           companyName={user.companyName}
         />
       </div>

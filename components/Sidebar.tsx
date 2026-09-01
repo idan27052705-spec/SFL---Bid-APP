@@ -17,7 +17,9 @@ import {
   Banknote,
   type LucideIcon,
 } from "lucide-react";
-import { APP, COMPANY, NAV, NAV_SETTINGS } from "@/app/config";
+import { APP, COMPANY, NAV, NAV_SETTINGS, ROLE_LABEL, type AppRole } from "@/app/config";
+import { canSeePage } from "@/lib/access";
+import { pageOfPath } from "@/lib/access";
 
 const ICONS: Record<string, LucideIcon> = {
   "layout-dashboard": LayoutDashboard,
@@ -56,8 +58,19 @@ function NavLink({
 export default function Sidebar({
   user,
 }: {
-  user: { name: string; email: string; role: string; companyName: string };
+  user: {
+    name: string;
+    email: string;
+    appRole: AppRole;
+    pageAccess: string[];
+    companyName: string;
+  };
 }) {
+  /** A link nobody can open shouldn't be in the menu at all. */
+  const visible = (href: string) => {
+    const page = pageOfPath(href);
+    return !page || canSeePage(user, page);
+  };
   const pathname = usePathname();
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -107,14 +120,14 @@ export default function Sidebar({
       </div>
 
       <nav className="sidegroup" style={{ display: "flex", flexDirection: "column" }}>
-        {NAV.map((n) => (
+        {NAV.filter((n) => visible(n.href)).map((n) => (
           <NavLink key={n.key} href={n.href} label={n.label} icon={n.icon} active={isActive(n.href)} />
         ))}
       </nav>
 
       <div className="sidegroup" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <div className="sidelabel">Settings</div>
-        {NAV_SETTINGS.map((n) => (
+        {NAV_SETTINGS.filter((n) => visible(n.href)).map((n) => (
           <NavLink key={n.key} href={n.href} label={n.label} icon={n.icon} active={isActive(n.href)} />
         ))}
       </div>
@@ -138,12 +151,7 @@ export default function Sidebar({
           {user.name}
         </div>
         <div className="text-muted" style={{ fontSize: 11 }}>
-          {user.role === "owner"
-            ? "Owner"
-            : user.role === "staff"
-              ? "Staff"
-              : "View only"}{" "}
-          · {user.companyName}
+          {ROLE_LABEL[user.appRole]} · {user.companyName}
         </div>
         <form action="/auth/signout" method="post">
           <button

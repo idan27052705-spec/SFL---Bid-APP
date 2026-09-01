@@ -2,18 +2,19 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireApiUser, forbidden, badRequest, notFound } from "@/lib/api";
 import { wrongOrigin } from "@/lib/guard";
-import { ROLES } from "@/app/config";
+import { APP_ROLES, PAGES } from "@/app/config";
 
-/** The two payments roles. An owner is an admin whatever this says. */
-const PAYMENTS_ROLES = ["admin", "pm"];
+const PAGE_KEYS = PAGES.map((p) => p.key) as string[];
 
 /**
- * PATCH /api/team/:id — change what someone is allowed to do. Owners only.
+ * PATCH /api/team/:id — someone's role and the pages they can open.
+ * Admins only.
  *
- * Two roles live on a profile and they answer different questions: `role`
- * is what they can do in the app, `payments_role` is who they are to the
- * payment schedule. They are set from the same table on the same screen,
- * so they come through the same route — either alone, or both at once.
+ * The role and the page list are one decision made on one screen, so
+ * they are saved together. An admin sees everything regardless of the
+ * list, so the list is only meaningful for a project manager — but it is
+ * still stored for an admin, so demoting someone doesn't silently hand
+ * them whatever happened to be ticked years ago.
  */
 export async function PATCH(
   request: Request,
@@ -26,67 +27,80 @@ export async function PATCH(
   if ("error" in auth) return auth.error;
   const { user } = auth;
 
-  if (user.role !== "owner")
-    return forbidden("Only an owner can change roles.");
+  if (user.appRole !== "admin")
+    return forbidden("Only an admin can change what someone can access.");
 
   const body = await request.json().catch(() => null);
+  if (!body) return badRequest("Nothing to change.");
 
-  const wantsRole = body?.role !== undefined;
-  const wantsPaymentsRole = body?.paymentsRole !== undefined;
-  if (!wantsRole && !wantsPaymentsRole) return badRequest("Nothing to change.");
+  const appRole = String(body.appRole ?? "");
+  if (!(APP_ROLES as readonly string[]).includes(appRole))
+    return badRequest("Pick Admin or Project manager.");
 
-  const role = String(body?.role ?? "");
-  if (wantsRole && !ROLES.includes(role as never))
-    return badRequest("Unknown role.");
+  const requested: unknown = body.pageAccess;
+  if (!Array.isArray(requested)) return badRequest("Nothing to change.");
 
-  const paymentsRole = String(body?.paymentsRole ?? "");
-  if (wantsPaymentsRole && !PAYMENTS_ROLES.includes(paymentsRole))
-    return badRequest("Unknown payments role.");
+  // Only keys we know about, no duplicates. Anything else is dropped
+  // rather than trusted — this list decides what a person can reach.
+  const pageAccess = Array.from(new Set(requested.map(String))).filter((k) =>
+    PAGE_KEYS.includes(k)
+  );
 
   const supabase = createClient();
 
   const { data: target } = await supabase
     .from("profiles")
-    .select("id, name, role")
+    .select("id, name, app_role")
     .eq("id", params.id)
     .single();
   if (!target) return notFound("That person isn't on your team.");
 
-  // Don't let the last owner demote themselves and lock everyone out.
-  if (wantsRole && target.role === "owner" && role !== "owner") {
+  /**
+   * Never leave the company without an admin. Losing the last one means
+   * nobody can pay a week, change a role, or undo this — and no screen
+   * left could put it right.
+   */
+  if (target.app_role === "admin" && appRole !== "admin") {
     const { count } = await supabase
       .from("profiles")
       .select("id", { count: "exact", head: true })
       .eq("company_id", user.companyId)
-      .eq("role", "owner");
+      .eq("app_role", "admin");
 
     if ((count ?? 0) <= 1)
       return badRequest(
-        "That's the only owner. Make someone else an owner first, or you'd lock everyone out."
+        "That's the only admin. Make someone else an admin first, or nobody could change this back."
+      );
+
+    if (target.id === user.id)
+      return badRequest(
+        "You can't take away your own admin. Ask another admin to do it."
       );
   }
 
-  const patch: Record<string, string> = {};
-  if (wantsRole) patch.role = role;
-  if (wantsPaymentsRole) patch.payments_role = paymentsRole;
+  // profiles_sync_role (migration 0009) keeps the RLS role and the
+  // payments role in step, so this route sets the one value people see.
+  const { error } = await supabase
+    .from("profiles")
+    .update({ app_role: appRole, page_access: pageAccess })
+    .eq("id", target.id);
 
-  const { error } = await supabase.from("profiles").update(patch).eq("id", target.id);
-  if (error) return badRequest("Couldn't change that role.");
+  if (error) return badRequest("Couldn't save that.");
 
-  /*
-    One line per thing that actually changed. "Changed their role to staff
-    and their payments role to admin" is two decisions, and the log is read
-    to find out when one of them was made.
-  */
+  const changedRole = target.app_role !== appRole;
   const entries = [
-    wantsRole ? `${user.name} changed ${target.name}'s role to ${role}` : null,
-    wantsPaymentsRole
+    changedRole
       ? `${user.name} made ${target.name} ${
-          paymentsRole === "admin"
-            ? "a payments admin"
-            : "a project manager on the payment schedule"
+          appRole === "admin" ? "an admin" : "a project manager"
         }`
       : null,
+    `${user.name} set ${target.name}'s access to ${
+      appRole === "admin"
+        ? "every page"
+        : pageAccess.length
+          ? pageAccess.join(", ")
+          : "no pages"
+    }`,
   ].filter((text): text is string => text !== null);
 
   await supabase.from("activity").insert(

@@ -10,6 +10,8 @@ import {
   type ProofFile,
   type ReopenRequest,
 } from "@/lib/payments";
+import { canSeePage } from "@/lib/access";
+import type { AppRole } from "@/app/config";
 import { paymentsRoleOf, type PaymentsRole, type RowFacts } from "@/lib/paymentsGuard";
 
 /**
@@ -54,12 +56,30 @@ export async function requirePaymentsUser(): Promise<
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, name, email, role, company_id, payments_role")
+    .select("id, name, email, role, company_id, payments_role, app_role, page_access")
     .eq("id", user.id)
     .single();
 
   if (!profile)
     return { error: badRequest("Your account isn't attached to a company.", 403) };
+
+  // Whoever handles the money is decided by the one app role now, so the
+  // schedule can't disagree with the rest of the app about who is admin.
+  const appRole = (profile.app_role as string) ?? "pm";
+
+  /**
+   * Someone without the Schedule Payments page has no business in its
+   * API either — the page gate and this are the same one decision.
+   */
+  if (
+    !canSeePage(
+      { appRole: appRole as AppRole, pageAccess: (profile.page_access as string[]) ?? [] },
+      "payments"
+    )
+  )
+    return {
+      error: forbidden("Your account doesn't have the payment schedule."),
+    };
 
   return {
     user: {
@@ -67,8 +87,10 @@ export async function requirePaymentsUser(): Promise<
       name: profile.name,
       email: profile.email,
       role: profile.role,
+      appRole: appRole as AppRole,
+      pageAccess: (profile.page_access as string[]) ?? [],
       companyId: profile.company_id,
-      paymentsRole: paymentsRoleOf(profile.role, profile.payments_role),
+      paymentsRole: paymentsRoleOf(profile.role, appRole),
       canWrite: profile.role !== "viewer",
     },
   };

@@ -55,6 +55,7 @@ Look: square corners, hairline borders, transparent fills. Headings in Barlow Co
 | `/subs/[id]` | **built** — details, bid history, portal access / regenerate code |
 | `/activity` | planned (S8) |
 | `/settings/account` | **built** — own name, email, password |
+| `/settings/team/[id]` | **built** — one person's role (admin / pm) and the pages they can open |
 | `/settings/company` | **built** — company details (name, phone, address, license, website, from/reply-to email). Owner edits, staff and viewers read. Feeds every email footer and the sub portal via `lib/company.ts` |
 | `/settings/trades`, `/settings/templates`, `/settings/reminders`, `/settings/team` | planned |
 | `/login` | **built** — email + password, Supabase Auth |
@@ -84,7 +85,15 @@ company scoping through RLS.
 
 Portal routes run on the service-role client (subs have no database account), so every one of them scopes reads and writes through the signed-in sub's own invitation.
 
-**Company (built):** `PATCH /api/company` — owner only.
+**Company (built):** `PATCH /api/company` — admin only.
+
+**Access (built):** two roles, `admin` and `pm`, on `profiles.app_role`, plus
+`profiles.page_access` (page keys, see `PAGES` in `app/config.ts`). Enforced in
+exactly two places: `requirePageUser()` in the staff layout (every page) and
+`requireApiUser()` (every API route), both asking `lib/access.ts` which page a
+path belongs to. The middleware passes the path on the `x-sfl-path` header.
+`profiles.role` (owner/staff/viewer) stays only because the 0001 RLS policies
+are written against it, and a trigger keeps it in step — it is never shown.
 
 **Planned:** `POST /api/portal/profile/change-requests` · `POST /api/change-requests/:id/approve|decline` · `PATCH /api/settings/trades`
 

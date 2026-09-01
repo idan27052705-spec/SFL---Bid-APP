@@ -4,8 +4,24 @@ import { NextResponse, type NextRequest } from "next/server";
 /** Public routes — everything else requires a signed-in staff user. */
 const PUBLIC = ["/login", "/auth", "/portal", "/api/portal"];
 
+/**
+ * The path, passed on as a header.
+ *
+ * A server component can't see the URL it is rendering, and API routes
+ * would each have to be edited to pass their own path. One header set
+ * here lets the staff layout and requireApiUser both ask "which page is
+ * this?" without touching either of them again.
+ */
+const PATH_HEADER = "x-sfl-path";
+
+function withPath(request: NextRequest) {
+  const headers = new Headers(request.headers);
+  headers.set(PATH_HEADER, request.nextUrl.pathname);
+  return { request: { headers } };
+}
+
 export async function updateSession(request: NextRequest) {
-  let response = NextResponse.next({ request });
+  let response = NextResponse.next(withPath(request));
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -19,7 +35,7 @@ export async function updateSession(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
-          response = NextResponse.next({ request });
+          response = NextResponse.next(withPath(request));
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           );

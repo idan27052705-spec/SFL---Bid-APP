@@ -21,7 +21,7 @@ export default async function CompanySettingsPage() {
       </div>
 
       <div className="pagebody">
-        <CompanyForm company={company} canEdit={user.role === "owner"} />
+        <CompanyForm company={company} canEdit={user.appRole === "admin"} />
       </div>
     </>
   );

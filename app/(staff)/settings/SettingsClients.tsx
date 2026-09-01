@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, X } from "lucide-react";
@@ -191,9 +193,10 @@ export type TeamMember = {
   id: string;
   name: string;
   email: string;
-  role: string;
-  /** 'admin' or 'pm' on the payment schedule. An owner is an admin anyway. */
-  paymentsRole: string;
+  /** The only role the interface shows: 'admin' or 'pm'. */
+  appRole: string;
+  /** Page keys they may open. Meaningless for an admin, who has all. */
+  pageAccess: string[];
   lastActive: string;
   isYou: boolean;
 };
@@ -325,38 +328,30 @@ export function TeamEditor({ isOwner }: { isOwner: boolean }) {
   );
 }
 
-export function TeamTable({ team, isOwner }: { team: TeamMember[]; isOwner: boolean }) {
-  const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
-
-  /** One route for both roles — it takes whichever one is sent. */
-  async function patch(id: string, change: Record<string, string>) {
-    setError(null);
-    const res = await fetch(`/api/team/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(change),
-    });
-    const data = await res.json();
-    if (!res.ok) setError(data.error);
-    router.refresh();
-  }
-
+export function TeamTable({ team, isAdmin }: { team: TeamMember[]; isAdmin: boolean }) {
+  /**
+   * The table says who someone is; changing it happens on their own page.
+   * Role and pages are one decision — a dropdown here that set the role
+   * without the pages would leave a project manager holding whatever was
+   * ticked for them last year.
+   */
   return (
-    <>
-      {error && <div style={{ fontSize: 13, color: "#b3261e", padding: "0 0 8px" }}>{error}</div>}
-      <table className="table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Email</th>
-            <th>Role</th>
-            <th>Payments</th>
-            <th style={{ textAlign: "right" }}>Last active</th>
-          </tr>
-        </thead>
-        <tbody>
-          {team.map((u) => (
+    <table className="table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Access</th>
+          <th>Last active</th>
+          {isAdmin && <th />}
+        </tr>
+      </thead>
+      <tbody>
+        {team.map((u) => {
+          const admin = u.appRole === "admin";
+          const count = u.pageAccess.filter((k) => k !== "account").length;
+          return (
             <tr key={u.id}>
               <td style={{ fontWeight: 500 }}>
                 {u.name}
@@ -364,58 +359,32 @@ export function TeamTable({ team, isOwner }: { team: TeamMember[]; isOwner: bool
               </td>
               <td style={{ fontSize: 13 }}>{u.email}</td>
               <td>
-                {isOwner ? (
-                  <select
-                    className="input"
-                    style={{ width: 130 }}
-                    value={u.role}
-                    onChange={(e) => patch(u.id, { role: e.target.value })}
-                  >
-                    <option value="owner">owner</option>
-                    <option value="staff">staff</option>
-                    <option value="viewer">viewer</option>
-                  </select>
+                <span className={admin ? "tag tag-accent" : "tag tag-neutral"}>
+                  {admin ? "Admin" : "Project manager"}
+                </span>
+              </td>
+              <td style={{ fontSize: 13 }}>
+                {admin ? (
+                  "Every page"
+                ) : count === 0 ? (
+                  <span style={{ color: "#b3261e" }}>No pages yet</span>
                 ) : (
-                  <span className="tag tag-neutral">{u.role}</span>
+                  `${count} page${count === 1 ? "" : "s"}`
                 )}
               </td>
-              {/*
-                Who handles the money. An owner is a payments admin whatever
-                the column says — someone must always be able to pay a week
-                and undo a mistake — so their row states it rather than
-                offering a choice that would not be honoured.
-              */}
-              <td>
-                {u.role === "owner" ? (
-                  <span
-                    className="tag tag-accent"
-                    title="An owner always handles the payments — the schedule can never be left without an admin."
-                  >
-                    Admin (owner)
-                  </span>
-                ) : isOwner ? (
-                  <select
-                    className="input"
-                    style={{ width: 150 }}
-                    value={u.paymentsRole === "admin" ? "admin" : "pm"}
-                    onChange={(e) => patch(u.id, { paymentsRole: e.target.value })}
-                    title="Admins pay rows, send them back and reopen weeks. Project managers own their own week."
-                  >
-                    <option value="pm">Project manager</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                ) : (
-                  <span className="tag tag-neutral">
-                    {u.paymentsRole === "admin" ? "Admin" : "Project manager"}
-                  </span>
-                )}
-              </td>
-              <td style={{ textAlign: "right", fontSize: 13 }}>{u.lastActive}</td>
+              <td style={{ fontSize: 13 }}>{u.lastActive}</td>
+              {isAdmin && (
+                <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                  <Link className="btn btn-secondary" href={`/settings/team/${u.id}`}>
+                    Manage access
+                  </Link>
+                </td>
+              )}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 

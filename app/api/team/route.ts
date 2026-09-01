@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireApiUser, forbidden, badRequest } from "@/lib/api";
 import { wrongOrigin } from "@/lib/guard";
-import { ROLES } from "@/app/config";
+import { APP_ROLES, DEFAULT_PM_ACCESS } from "@/app/config";
 
 /**
  * POST /api/team — add a teammate. Owners only.
@@ -22,18 +22,18 @@ export async function POST(request: Request) {
   if ("error" in auth) return auth.error;
   const { user } = auth;
 
-  if (user.role !== "owner")
+  if (user.appRole !== "admin")
     return forbidden("Only an owner can add or change team members.");
 
   const body = await request.json().catch(() => null);
   const name = String(body?.name ?? "").trim();
   const email = String(body?.email ?? "").trim().toLowerCase();
-  const role = String(body?.role ?? "staff");
+  const appRole = String(body?.role ?? "pm");
 
   if (!name) return badRequest("Enter their name.");
   if (!/^\S+@\S+\.\S+$/.test(email)) return badRequest("Enter a valid email address.");
-  if (!ROLES.includes(role as never)) return badRequest("Unknown role.");
-  if (role === "owner") return badRequest("Add them as staff first, then change the role.");
+  if (!(APP_ROLES as readonly string[]).includes(appRole))
+    return badRequest("Pick Admin or Project manager.");
 
   const supabase = createClient();
   const { data: existing } = await supabase
@@ -64,7 +64,16 @@ export async function POST(request: Request) {
     company_id: user.companyId,
     name,
     email,
-    role,
+    /*
+      The RLS role follows from app_role in the database (trigger
+      profiles_sync_role), so only the one people see is set here. A new
+      project manager starts with the payment schedule and their own
+      account — never with everything — and an admin's list is stored but
+      ignored while they are an admin.
+    */
+    app_role: appRole,
+    page_access: appRole === "admin" ? [] : DEFAULT_PM_ACCESS,
+    role: appRole === "admin" ? "owner" : "staff",
   });
 
   if (error) {
@@ -76,7 +85,7 @@ export async function POST(request: Request) {
     company_id: user.companyId,
     type: "created",
     text: `${user.name} added ${name} to the team`,
-    meta: role,
+    meta: appRole,
     actor_id: user.id,
   });
 

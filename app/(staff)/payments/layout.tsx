@@ -125,14 +125,12 @@ export default async function PaymentsLayout({
     (record) => toReopenRequest(record, names)
   );
 
-  const mine = profiles.find((p) => p.id === user.id);
-
   return (
     <PaymentsProvider
       me={me}
       pms={pms}
       projects={projects}
-      paymentsRole={paymentsRoleOf(user.role, mine?.payments_role)}
+      paymentsRole={paymentsRoleOf(user.role, user.appRole)}
       canWrite={canWrite(user)}
       rows={rows}
       submissions={submissions}

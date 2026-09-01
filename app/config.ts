@@ -28,6 +28,88 @@ export const COMPANY = {
 } as const;
 
 /** Staff sidebar — key must match the route segment. */
+/**
+ * ─── Access ──────────────────────────────────────────────────────────
+ *
+ * Two roles, and nothing else:
+ *
+ *   admin — runs the company. Sees every page, always. An admin cannot
+ *           be locked out of anything, which is what makes it safe to
+ *           lock everyone else down.
+ *   pm    — a project manager. Sees only the pages ticked on their own
+ *           access page, and nothing more.
+ *
+ * Page access is a list of these keys on the profile. It is checked in
+ * two places and only two: the staff layout (every page) and
+ * requireApiUser (every API route). Adding a page here and to NAV is
+ * all it takes for it to appear in the access list.
+ */
+export const APP_ROLES = ["admin", "pm"] as const;
+export type AppRole = (typeof APP_ROLES)[number];
+
+export const ROLE_LABEL: Record<AppRole, string> = {
+  admin: "Admin",
+  pm: "Project manager",
+};
+
+export const ROLE_NOTE: Record<AppRole, string> = {
+  admin: "Full access to every page, including team and company settings.",
+  pm: "Sees only the pages you tick below.",
+};
+
+export type PageKey =
+  | "dashboard"
+  | "projects"
+  | "bids"
+  | "subs"
+  | "payments"
+  | "account"
+  | "company"
+  | "trades"
+  | "templates"
+  | "reminders"
+  | "team";
+
+export const PAGES: {
+  key: PageKey;
+  label: string;
+  href: string;
+  /** Extra paths that belong to this page, for matching a URL. */
+  also?: string[];
+  group: "Work" | "Settings";
+  /** Nobody can be locked out of these. */
+  always?: boolean;
+  note?: string;
+}[] = [
+  { key: "dashboard", label: "Dashboard", href: "/", group: "Work", also: ["/activity"] },
+  { key: "projects", label: "Projects", href: "/projects", group: "Work" },
+  { key: "bids", label: "Bids", href: "/bids", group: "Work" },
+  { key: "subs", label: "Subs", href: "/subs", group: "Work" },
+  {
+    key: "payments",
+    label: "Schedule Payments",
+    href: "/payments",
+    group: "Work",
+    note: "Inside this page, Admin pays and sends back; a PM fills in their own week.",
+  },
+  {
+    key: "account",
+    label: "My account",
+    href: "/settings/account",
+    group: "Settings",
+    always: true,
+    note: "Everyone manages their own name, email and password.",
+  },
+  { key: "company", label: "Company details", href: "/settings/company", group: "Settings" },
+  { key: "trades", label: "Trades", href: "/settings/trades", group: "Settings" },
+  { key: "templates", label: "Templates", href: "/settings/templates", group: "Settings" },
+  { key: "reminders", label: "Reminders", href: "/settings/reminders", group: "Settings" },
+  { key: "team", label: "Team & roles", href: "/settings/team", group: "Settings" },
+];
+
+/** What a brand-new project manager gets before anyone edits them. */
+export const DEFAULT_PM_ACCESS: PageKey[] = ["payments", "account"];
+
 export const NAV = [
   { key: "dashboard", label: "Dashboard", icon: "layout-dashboard", href: "/" },
   { key: "projects", label: "Projects", icon: "folder", href: "/projects" },
@@ -114,6 +196,12 @@ export const REMINDER_CADENCES = [
   "Stopped",
 ] as const;
 
+/**
+ * The database's own role column, kept only because every RLS policy in
+ * migration 0001 is written against it. It follows app_role
+ * automatically (admin -> owner, pm -> staff) and is never shown to
+ * anyone. Use APP_ROLES above for anything a person sees.
+ */
 export const ROLES = ["owner", "staff", "viewer"] as const;
 export type Role = (typeof ROLES)[number];
 

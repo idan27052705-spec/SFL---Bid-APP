@@ -11,9 +11,8 @@ type Props = {
 };
 
 const ROLE_COPY: Record<string, string> = {
-  owner: "Owner — full access, including team and settings.",
-  staff: "Staff — can create projects, bids and invitations, and award work.",
-  viewer: "View only — can see everything, but can't send, edit or award.",
+  admin: "Admin — full access to every page, including team and company settings.",
+  pm: "Project manager — sees only the pages an admin has given you.",
 };
 
 /**
@@ -207,9 +206,9 @@ export default function AccountForm({ name, email, role, companyName }: Props) {
           </div>
           <div className="text-muted" style={{ fontSize: 12, marginTop: 6 }}>
             {ROLE_COPY[role]}{" "}
-            {role === "owner"
-              ? "Only an owner can change anyone's role, on the Team & roles page."
-              : "Only an owner can change your role — ask the office."}
+            {role === "admin"
+              ? "You change anyone's role and access on the Team & roles page."
+              : "Only an admin can change your role or open more pages for you — ask the office."}
           </div>
         </div>
       </div>

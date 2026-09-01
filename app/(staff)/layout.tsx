@@ -1,12 +1,14 @@
 import Sidebar from "@/components/Sidebar";
-import { requireUser } from "@/lib/auth";
+import { requirePageUser } from "@/lib/auth";
 
 export default async function StaffLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const user = await requireUser();
+  // Wraps every staff page, so this is where access is decided — a page
+  // can't forget to ask.
+  const user = await requirePageUser();
 
   return (
     <div className="app">
@@ -14,7 +16,8 @@ export default async function StaffLayout({
         user={{
           name: user.name,
           email: user.email,
-          role: user.role,
+          appRole: user.appRole,
+          pageAccess: user.pageAccess,
           companyName: user.companyName,
         }}
       />
