@@ -106,7 +106,7 @@ settings, email templates).
 Migrations `0003_bid_files.sql` adds `bid_files`; `0004_access_code_recoverable.sql` adds `subs.access_code_enc`.
 `0003` (a drawing can be on several packages).
 
-Tables: `companies`, `users`, `projects`, `trades`, `bids`, `bid_line_items`, `subs`, `invitations`, `responses`, `response_line_items`, `messages`, `comments` (internal only), `change_requests`, `files`, `activity`, `settings`, `email_templates`.
+Email templates: `invite`, `reminder`, `award` (written to subs) and `team_invite` (written to your own project managers, sent by POST /api/team). Tables: `companies`, `users`, `projects`, `trades`, `bids`, `bid_line_items`, `subs`, `invitations`, `responses`, `response_line_items`, `messages`, `comments` (internal only), `change_requests`, `files`, `activity`, `settings`, `email_templates`.
 
 Every URL-facing table carries `short_id SERIAL UNIQUE`.
 

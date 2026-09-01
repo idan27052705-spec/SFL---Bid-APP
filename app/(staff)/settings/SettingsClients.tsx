@@ -204,8 +204,13 @@ export type TeamMember = {
 export function TeamEditor({ isOwner }: { isOwner: boolean }) {
   const router = useRouter();
   const [inviting, setInviting] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", role: "staff" });
-  const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
+  const [form, setForm] = useState({ name: "", email: "", role: "pm" });
+  const [created, setCreated] = useState<{
+    email: string;
+    password: string;
+    emailed: boolean;
+    emailError: string | null;
+  } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -224,8 +229,13 @@ export function TeamEditor({ isOwner }: { isOwner: boolean }) {
       return;
     }
     setInviting(false);
-    setForm({ name: "", email: "", role: "staff" });
-    setCreated({ email: data.email, password: data.password });
+    setForm({ name: "", email: "", role: "pm" });
+    setCreated({
+      email: data.email,
+      password: data.password,
+      emailed: Boolean(data.emailed),
+      emailError: data.emailError ?? null,
+    });
     router.refresh();
   }
 
@@ -246,7 +256,7 @@ export function TeamEditor({ isOwner }: { isOwner: boolean }) {
       {inviting && (
         <Modal
           title="Invite a teammate"
-          subtitle="They get an account straight away — you pass on the password."
+          subtitle="They get an account straight away, and the sign-in details by email."
           onClose={() => setInviting(false)}
           footer={
             <>
@@ -276,17 +286,22 @@ export function TeamEditor({ isOwner }: { isOwner: boolean }) {
             onChange={(v) => setForm((f) => ({ ...f, email: v }))}
             placeholder="yesenia@sflbuildersgroup.com"
           />
-          <ModalField
-            id="role"
-            label="Role"
-            value={form.role}
-            onChange={(v) => setForm((f) => ({ ...f, role: v }))}
-            options={["staff", "viewer"]}
-          />
+          <div className="field">
+            <label htmlFor="role">Role</label>
+            <select
+              id="role"
+              className="input"
+              value={form.role}
+              onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
+            >
+              <option value="pm">Project manager</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
           <div style={{ fontSize: 12, color: MUTED }}>
-            <strong>Staff</strong> can create projects and bids, invite subs and
-            award work. <strong>Viewer</strong> can see everything but change
-            nothing. You can make someone an owner afterwards.
+            A <strong>project manager</strong> starts with Schedule Payments and
+            their own account, and nothing else — you open more pages for them on
+            their access page. An <strong>admin</strong> sees everything.
           </div>
         </Modal>
       )}
@@ -294,7 +309,11 @@ export function TeamEditor({ isOwner }: { isOwner: boolean }) {
       {created && (
         <Modal
           title="Account created"
-          subtitle="Give them these. They can change the password on My account."
+          subtitle={
+            created.emailed
+              ? `Emailed to ${created.email}. Here it is too, in case they don't get it.`
+              : "The account is ready — the email didn't go out, so pass these on yourself."
+          }
           onClose={() => setCreated(null)}
           footer={
             <button className="btn btn-primary" onClick={() => setCreated(null)}>
@@ -312,9 +331,14 @@ export function TeamEditor({ isOwner }: { isOwner: boolean }) {
               {created.password}
             </div>
           </div>
+          {!created.emailed && (
+            <p style={{ fontSize: 13, margin: 0, color: "#b3261e" }}>
+              {created.emailError ?? "The invitation email didn't send."}
+            </p>
+          )}
           <p style={{ fontSize: 13, margin: 0 }}>
             <strong>Write this down now.</strong> It isn&apos;t stored anywhere you
-            can read it back.
+            can read it back, and it only works until they change it.
           </p>
           <button
             className="btn btn-secondary"
@@ -398,6 +422,7 @@ export function TemplatesEditor({
   sms: initialSms,
   customFields: initialFields,
   canWrite,
+  showSms = true,
 }: {
   kind: string;
   subject: string;
@@ -405,6 +430,8 @@ export function TemplatesEditor({
   sms: string;
   customFields: CustomField[];
   canWrite: boolean;
+  /** A teammate's invitation is email only — there is no SMS of it. */
+  showSms?: boolean;
 }) {
   const router = useRouter();
   const [subject, setSubject] = useState(initialSubject);
@@ -467,25 +494,41 @@ export function TemplatesEditor({
         </div>
 
         <div className="blueprint" style={{ padding: 18, display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-            <h4 style={{ margin: 0 }}>SMS</h4>
-            <NotConnected />
-          </div>
-          <div className="field">
-            <label htmlFor="sms">Message</label>
-            <textarea
-              id="sms"
-              className="input"
-              style={{ minHeight: 130 }}
-              value={sms}
-              disabled={!canWrite}
-              onChange={(e) => setSms(e.target.value)}
-            />
-          </div>
-          <div style={{ fontSize: 11, marginTop: 8, color: FAINT }}>
-            {sms.length} characters · {segments} segment{segments === 1 ? "" : "s"} ·
-            saved and ready — nothing is sent by text until Twilio is switched on
-          </div>
+          {showSms ? (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+                <h4 style={{ margin: 0 }}>SMS</h4>
+                <NotConnected />
+              </div>
+              <div className="field">
+                <label htmlFor="sms">Message</label>
+                <textarea
+                  id="sms"
+                  className="input"
+                  style={{ minHeight: 130 }}
+                  value={sms}
+                  disabled={!canWrite}
+                  onChange={(e) => setSms(e.target.value)}
+                />
+              </div>
+              <div style={{ fontSize: 11, marginTop: 8, color: FAINT }}>
+                {sms.length} characters · {segments} segment{segments === 1 ? "" : "s"} ·
+                saved and ready — nothing is sent by text until Twilio is switched on
+              </div>
+            </>
+          ) : (
+            <>
+              <h4 style={{ margin: "0 0 10px" }}>How it goes out</h4>
+              <p style={{ fontSize: 13, margin: 0 }}>
+                Emailed the moment you add someone on <b>Team &amp; roles</b>, from
+                your company&apos;s own address. The one-time password is also
+                shown on screen, so you can read it out if their mail is slow.
+              </p>
+              <p className="text-muted" style={{ fontSize: 12 }}>
+                No text message — this one is email only.
+              </p>
+            </>
+          )}
 
           {error && <div style={{ fontSize: 13, color: "#b3261e", marginTop: 8 }}>{error}</div>}
           {message && (
