@@ -6,6 +6,7 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["next", "dev", "-p", "3010"],
       "port": 3010,
+      "autoPort": false,
       "env": { "NODE_OPTIONS": "--max-old-space-size=4096" }
     }
   ]
